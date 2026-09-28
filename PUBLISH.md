@@ -4,14 +4,14 @@
 
 ## 0. 状态
 
-| 项 | 现状（2026-09-26） |
+| 项 | 现状（2026-09-28） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.6.0（文档格式版本号 + 迁移链 + op:rebuild 重建） |
+| 版本 | v0.7.0（文档格式 v3：主文档四节 + 条目限长 + 条数上限 + 文档锁） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases/tag/v0.1.0> |
 | npm | **未发布**（本机装的是 GitHub 源） |
 | 注意 | GitHub API token 可能已失效；`git push` 走 SSH 不受影响 |
-| 测试 | 95 项通过（4 组，无需 Cordis 运行时或浏览器） |
+| 测试 | **v3 起旧自检已过期**（断言钉死 v2 形状）；按工作约定不维护、不追红。验收判据见 README「v3 的验收判据」 |
 | 依赖 | 无。只 peer 依赖 `@deepseek-ai/dsh-tools`（运行时提供） |
 
 ## 1. 别人怎么装（GitHub 源，推荐）
@@ -49,7 +49,7 @@ ln -s ~/.dsh/plugin-src/dsh-puzzle-mode <profile>/node_modules/dsh-puzzle-mode
 
 ```bash
 cd ~/.dsh/plugin-src/dsh-puzzle-mode
-npm test                       # 95 项必须全绿
+npm test                       # v3 起旧自检已过期（断言钉死 v2 形状），不追红；见 README「v3 的验收判据」
 # 改 package.json 的 version（例如 0.1.1）
 git add -A && git commit -m "chore(release): v0.1.1"
 git tag v0.1.1 && git push origin HEAD --tags
@@ -80,7 +80,7 @@ curl -sS -X POST -H "Authorization: Bearer $(cat /root/.dsh/.github-token)" \
 
 | 项 | 命令 | 期望 |
 | --- | --- | --- |
-| 测试 | `npm test` | 95 项通过 |
+| 测试 | `npm test` | v3 起旧自检已过期，不追红；真机按 README 的验收判据看 |
 | 语法 | `node --check lib/*.js` | 无输出 |
 | 打包内容 | `npm pack --dry-run` | 只有 `lib/ test/ cordis.patch.yml README.md LICENSE package.json`，无密钥 |
 | 配置可组合 | `dsh --profile web --dump-config \| grep -A2 dsh-puzzle-mode` | 出现 `# == dsh-puzzle-mode` |
