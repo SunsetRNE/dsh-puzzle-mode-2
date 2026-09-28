@@ -7,7 +7,7 @@
 | 项 | 现状（2026-09-28） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.9.0（接续会话：op:read brief 精简档 + 面板「接续会话」按钮） |
+| 版本 | v0.10.0（五维真实值 + 源码工程化体检 + 源码根） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases/tag/v0.1.0> |
 | npm | **未发布**（本机装的是 GitHub 源） |
 | 注意 | GitHub API token 可能已失效；`git push` 走 SSH 不受影响 |
