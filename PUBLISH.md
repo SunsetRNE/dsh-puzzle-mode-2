@@ -7,7 +7,7 @@
 | 项 | 现状（2026-09-28） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.7.0（文档格式 v3：主文档四节 + 条目限长 + 条数上限 + 文档锁） |
+| 版本 | v0.8.0（审查条目级发现 + 迁移/重构常驻按钮 + 条目书签式显示） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases/tag/v0.1.0> |
 | npm | **未发布**（本机装的是 GitHub 源） |
 | 注意 | GitHub API token 可能已失效；`git push` 走 SSH 不受影响 |
