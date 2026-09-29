@@ -11,7 +11,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.11.1** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.12.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 
 ---
 
@@ -20,7 +20,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.11.1
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.12.0
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -31,7 +31,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.11.1.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.11.1/dsh-puzzle-mode-0.11.1.tgz)
+[dsh-puzzle-mode-0.12.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.12.0/dsh-puzzle-mode-0.12.0.tgz)
 （约 117 KB，含全部源码）
 
 **方式三 · dsh CLI**
@@ -48,6 +48,21 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.12.0 · 修掉「删不掉的小节」
+
+**修复**
+
+- **规范之外的小节现在真的会被删掉**：以前只删五个固定标题，
+  其它小节（如 `## 模块 → 文档`）会被原样拼回末尾，永远清不掉。
+  现在改成「不在规范里就删」，迁移预览逐条列明删了什么。
+- **带说明后缀的标题能读到了**：`## 源码索引（src/，共 110 文件）` 以前
+  **读不出来**，写的时候还会另起一个空节，原文永远看不见。
+- **`## 可复用` 变成正式小节**：它曾是「可复用性」这一维唯一的证据来源，
+  却**没有任何 op 能写它**——这一维只能靠手改文档维持，而手改又被文档锁拦住。
+- **`## 悬而未决` / `## 已定` 的字数上限以前从未生效**：上限表里漏了这两项，
+  `count > undefined` 恒为 `false`，于是「≤20 字」这条规格一直静默失效。
+  修完立刻在真实项目里抓出 3 条超长条目。
 
 ### v0.11.1 · 修掉模块级「假分」
 
@@ -190,12 +205,23 @@ puzzle: 3
 | 模块索引 / 源码索引 / 工具索引 | 50 字 | — |
 | 坑 | 20 字 | — |
 | 模块 `## 要点` | 20 字 | — |
+| 模块 `## 可复用` | 20 字 | — |
 | 模块 `## 详细记录` | 50 字 | — |
 | 模块 `## 悬而未决` | 20 字 | **4 条**，超了删最旧 |
 | 模块 `## 已定` | 20 字 | **10 条**，超了删最旧 |
 
 **超长是报错，不是截断**——半句话落进文档比让你重写一遍更糟。
 **超条数是自动删最旧**，不论旧项有没有澄清。
+
+### 规范之外的小节会被清掉
+
+主文档只允许那四节、模块文档只允许上表里的小节。**其它小节一律算「非规范」**：
+它们既读不进任何 op、也不会被写入覆盖，只能靠迁移清掉。
+所以 `op:rebuild` 会**删除**它们（预览里逐条列明「删了哪个、含几条」），
+`op:audit` 也会报 `unknown_section` 提醒你——内容若有用，先搬进规范小节。
+
+标题允许带说明后缀：`## 源码索引（src/，共 110 文件）` 仍算「源码索引」，
+写回时会归一化成规范标题。但 `## 坑与决策` **不**算 `## 坑`。
 
 ### 文档锁
 
