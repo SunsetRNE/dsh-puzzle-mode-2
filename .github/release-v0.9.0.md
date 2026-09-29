@@ -1,3 +1,15 @@
+## 下载安装
+
+```bash
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.9.0
+```
+
+或直接下载附件：[dsh-puzzle-mode-0.9.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.9.0/dsh-puzzle-mode-0.9.0.tgz)
+
+装完**重启 profile**，再刷新页面。
+
+---
+
 ## 接续会话：新会话不必通读全部文档
 
 新会话慢的根因不是文档大，是**读法错了**。

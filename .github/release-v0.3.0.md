@@ -1,3 +1,13 @@
+## 下载安装
+
+```bash
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.3.0
+```
+
+> 这一版早于 v0.8.1，Release 页没有附件；用上面的命令装，或直接装最新版。
+
+---
+
 ## 提问
 
 - 一轮提问上限 **3 → 5**（提示段、init 的 next、面板提问模板的槽位同步）。

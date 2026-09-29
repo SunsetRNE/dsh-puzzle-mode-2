@@ -1,3 +1,15 @@
+## 下载安装
+
+```bash
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.8.1
+```
+
+或直接下载附件：[dsh-puzzle-mode-0.8.1.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.8.1/dsh-puzzle-mode-0.8.1.tgz)
+
+装完**重启 profile**，再刷新页面。
+
+---
+
 ## 修掉「解绑了过一会又自动绑定」
 
 这个 bug 有**两个独立成因**，只修一个症状会变形——两个都修了。

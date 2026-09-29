@@ -1,3 +1,13 @@
+## 下载安装
+
+```bash
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.7.0
+```
+
+> 这一版早于 v0.8.1，Release 页没有附件；用上面的命令装，或直接装最新版。
+
+---
+
 ## 破坏性变更：文档格式 v3
 
 ### 主文档四节化

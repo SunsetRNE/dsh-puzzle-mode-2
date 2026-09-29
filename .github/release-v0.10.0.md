@@ -1,3 +1,15 @@
+## 下载安装
+
+```bash
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.10.0
+```
+
+或直接下载附件：[dsh-puzzle-mode-0.10.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.10.0/dsh-puzzle-mode-0.10.0.tgz)
+
+装完**重启 profile**，再刷新页面。
+
+---
+
 ## 五维真实值 + 源码工程化体检
 
 ### 为什么需要「真实值」

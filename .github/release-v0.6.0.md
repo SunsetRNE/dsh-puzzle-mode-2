@@ -1,3 +1,13 @@
+## 下载安装
+
+```bash
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.6.0
+```
+
+> 这一版早于 v0.8.1，Release 页没有附件；用上面的命令装，或直接装最新版。
+
+---
+
 ## 文档格式版本号 + 迁移链
 
 `front-matter` 的 `puzzle:` 正式当**文档格式版本**用（v1 单维完成度 → v2 五维 + 会话绑定）。
