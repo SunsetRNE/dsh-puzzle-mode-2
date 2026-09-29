@@ -49,7 +49,7 @@ ln -s ~/.dsh/plugin-src/dsh-puzzle-mode <profile>/node_modules/dsh-puzzle-mode
 
 ```bash
 cd ~/.dsh/plugin-src/dsh-puzzle-mode
-npm test                       # v3 起旧自检已过期（断言钉死 v2 形状），不追红；见 README「v3 的验收判据」
+npm test                       # v3 起旧自检已过期（断言钉死 v2 形状），不追红；验收判据见该版本 Release 正文
 # 改 package.json 的 version（例如 0.1.1）
 git add -A && git commit -m "chore(release): v0.1.1"
 git tag v0.1.1 && git push origin HEAD --tags
@@ -80,7 +80,7 @@ curl -sS -X POST -H "Authorization: Bearer $(cat /root/.dsh/.github-token)" \
 
 | 项 | 命令 | 期望 |
 | --- | --- | --- |
-| 测试 | `npm test` | v3 起旧自检已过期，不追红；真机按 README 的验收判据看 |
+| 测试 | `npm test` | v3 起旧自检已过期，不追红；真机按该版本 Release 正文的「验收判据」看 |
 | 语法 | `node --check lib/*.js` | 无输出 |
 | 打包内容 | `npm pack --dry-run` | 只有 `lib/ test/ cordis.patch.yml README.md LICENSE package.json`，无密钥 |
 | 配置可组合 | `dsh --profile web --dump-config \| grep -A2 dsh-puzzle-mode` | 出现 `# == dsh-puzzle-mode` |
