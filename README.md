@@ -11,7 +11,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.12.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.13.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 
 ---
 
@@ -20,7 +20,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.12.0
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.13.0
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -31,8 +31,8 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.12.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.12.0/dsh-puzzle-mode-0.12.0.tgz)
-（约 117 KB，含全部源码）
+[dsh-puzzle-mode-0.13.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.13.0/dsh-puzzle-mode-0.13.0.tgz)
+（约 118 KB，含全部源码）
 
 **方式三 · dsh CLI**
 
@@ -49,7 +49,7 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 
 ## 最新版本
 
-### 未发布 · 对新会话关掉拼图模式
+### v0.13.0 · 对新会话关掉拼图模式
 
 **新增**
 

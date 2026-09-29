@@ -4,14 +4,14 @@
 
 ## 0. 状态
 
-| 项 | 现状（2026-09-28） |
+| 项 | 现状（2026-09-29） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.10.0（五维真实值 + 源码工程化体检 + 源码根） |
-| Release | <https://github.com/liancha22/dsh-puzzle-mode/releases/tag/v0.1.0> |
+| 版本 | v0.13.0（对新会话关掉拼图模式 + 修开关被「没绑项目」挡住的 bug） |
+| Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
-| 注意 | GitHub API token 可能已失效；`git push` 走 SSH 不受影响 |
-| 测试 | **v3 起旧自检已过期**（断言钉死 v2 形状）；按工作约定不维护、不追红。验收判据见 README「v3 的验收判据」 |
+| 注意 | GitHub API token 已实测有效（HTTP 200）；`git push` 走 SSH |
+| 测试 | **v3 起旧自检已过期**（断言钉死 v2 形状）；按工作约定不维护、不追红。验收判据见各版本 Release 正文的「验收判据」一节 |
 | 依赖 | 无。只 peer 依赖 `@deepseek-ai/dsh-tools`（运行时提供） |
 
 ## 1. 别人怎么装（GitHub 源，推荐）

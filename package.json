@@ -1,7 +1,7 @@
 {
   "name": "dsh-puzzle-mode",
-  "version": "0.12.0",
-  "description": "DSH 插件：拼图模式——一个会话只绑一个拼图项目（主文档 + 若干模块文档），AI 主动提问把不确定项变成已定项，用五维（任务复杂度/可拓展性/维护系数/代码质量/可复用性）算项目健康性。文档格式 v3：主文档只允许四节、模块文档只允许规范小节，重建会删掉多余小节（op:rebuild 也补 ## 可复用）；主文档只有 模块索引/源码索引/工具索引/坑 四节，条目限长且必须带源码出处，悬而未决 ≤4、已定 ≤10（超限删最旧），write/edit 改拼图文档会被文档锁拒绝。纯逻辑层按职责拆成 12 个文件（constants/util/docfs/frontmatter/entries/health/audit/source/migrate/templates/project/summary），lib/puzzle.js 退化为 barrel。模块级真实值只吃本模块引用的源码文件（项目级发现不摊给模块，未引用源码的模块标「没测」）。带 op:rebuild 迁移与两种执行模式（只拼不写 / 边拼边写）。",
+  "version": "0.13.0",
+  "description": "DSH 插件：拼图模式——一个会话只绑一个拼图项目（主文档 + 若干模块文档），AI 主动提问把不确定项变成已定项，用五维（任务复杂度/可拓展性/维护系数/代码质量/可复用性）算项目健康性。文档格式 v3：主文档只允许四节、模块文档只允许规范小节，重建会删掉多余小节（op:rebuild 也补 ## 可复用）；主文档只有 模块索引/源码索引/工具索引/坑 四节，条目限长且必须带源码出处，悬而未决 ≤4、已定 ≤10（超限删最旧），write/edit 改拼图文档会被文档锁拒绝。纯逻辑层按职责拆成 12 个文件（constants/util/docfs/frontmatter/entries/health/audit/source/migrate/templates/project/summary），lib/puzzle.js 退化为 barrel。模块级真实值只吃本模块引用的源码文件（项目级发现不摊给模块，未引用源码的模块标「没测」）。带 op:rebuild 迁移、op:settings 全局开关（对**此后新建**的会话关掉拼图模式，当前会话不受影响）与两种执行模式（只拼不写 / 边拼边写）。",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
