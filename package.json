@@ -1,7 +1,7 @@
 {
   "name": "dsh-puzzle-mode",
-  "version": "0.10.0",
-  "description": "DSH 插件：拼图模式——一个会话只绑一个拼图项目（主文档 + 若干模块文档），AI 主动提问把不确定项变成已定项，用五维（任务复杂度/可拓展性/维护系数/代码质量/可复用性）算项目健康性。文档格式 v3：主文档只有 模块索引/源码索引/工具索引/坑 四节，条目限长且必须带源码出处，悬而未决 ≤4、已定 ≤10（超限删最旧），write/edit 改拼图文档会被文档锁拒绝。带 op:rebuild 迁移与两种执行模式（只拼不写 / 边拼边写）。",
+  "version": "0.11.0",
+  "description": "DSH 插件：拼图模式——一个会话只绑一个拼图项目（主文档 + 若干模块文档），AI 主动提问把不确定项变成已定项，用五维（任务复杂度/可拓展性/维护系数/代码质量/可复用性）算项目健康性。文档格式 v3：主文档只有 模块索引/源码索引/工具索引/坑 四节，条目限长且必须带源码出处，悬而未决 ≤4、已定 ≤10（超限删最旧），write/edit 改拼图文档会被文档锁拒绝。纯逻辑层按职责拆成 12 个文件（constants/util/docfs/frontmatter/entries/health/audit/source/migrate/templates/project/summary），lib/puzzle.js 退化为 barrel。带 op:rebuild 迁移与两种执行模式（只拼不写 / 边拼边写）。",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
