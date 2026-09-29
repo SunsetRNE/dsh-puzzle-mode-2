@@ -11,7 +11,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.13.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.13.1** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 
 ---
 
@@ -20,7 +20,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.13.0
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.13.1
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -31,7 +31,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.13.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.13.0/dsh-puzzle-mode-0.13.0.tgz)
+[dsh-puzzle-mode-0.13.1.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.13.1/dsh-puzzle-mode-0.13.1.tgz)
 （约 118 KB，含全部源码）
 
 **方式三 · dsh CLI**
@@ -49,16 +49,20 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 
 ## 最新版本
 
-### v0.13.0 · 对新会话关掉拼图模式
+### v0.13.1 · 关掉某个会话的拼图模式
 
 **新增**
 
-- **`op:settings` 全局开关 + 面板按钮**：`disabled:true` 让**此后新建的会话**
-  不再注入拼图规则、也不再拦工具；当前会话不受影响（它出生在禁用时刻之前）。
-  `disabled:false` 恢复所有会话。存在 `$DSH_HOME/.dsh-puzzle-mode.json`。
-- **修掉一处真 bug**：`op:settings` 是全局开关，却曾被「本会话还没绑定拼图项目」
-  的守卫挡住——**新会话**（恰好是没绑定、也恰好是最需要这个开关的场景）
-  根本调不动它。现已加入放行名单。
+- **`op:settings` 按会话开关 + 面板按钮**：`disabled:true` 让**当前这个会话**
+  不再注入拼图规则、也不再拦工具（**下一轮立即生效**），**其他会话不受影响**；
+  `disabled:false` 恢复本会话。存在 `$DSH_HOME/.dsh-puzzle-mode.json`。
+- **修掉一处真 bug**：`op:settings` 与项目无关，却曾被「本会话还没绑定拼图项目」
+  的守卫挡住——**还没绑项目**的会话（恰好是最需要这个开关的场景）根本调不动它。
+  现已加入放行名单。
+
+> ⚠️ **v0.13.0 是个错版本**：那时开关记的是「全局时刻」，只对*此后新建*的会话
+> 生效，当前会话按下去毫无变化。用户反馈「怎么禁用没有效果，我要的是单独会话禁用
+> 不是全局」后改成现在这样——**v0.13.1 是修正版，请用它**。
 
 ### v0.12.0 · 修掉「删不掉的小节」
 
@@ -173,22 +177,22 @@ puzzle: 3
 - **真实值**：点一下看「声明 → 实测」逐维对照与虚高标记；
 - **按钮**：提问模板 / 审查 / 接续会话 / 迁移重构 / 仅迁移格式 / 解绑；
   模板只**填进输入框**，不自动发送；
-- **全局开关**：「新会话：关掉拼图模式」——按下之后**此后新建的会话**
-  不再注入拼图规则、也不再拦工具，当前会话照旧；再点一次恢复所有会话。
+- **按会话开关**：「关掉本会话的拼图模式」——按下之后**这个会话**下一轮起
+  不再注入拼图规则、也不再拦工具，**其他会话照旧**；再点一次恢复本会话。
 
 **新会话默认空**，面板显示空态，给三条路：**①表单直建**（填名字点一下就建好，
 不经过模型）、**②快速建空壳**、**③采访后再建**（交给 AI 来问、来拆模块）。
 
-### 4.5 不想用的时候：对新会话关掉拼图模式
+### 4.5 不想用的时候：关掉某个会话的拼图模式
 
 总有场景你只想安安静静改个代码，不想被提问规则牵着走，但又不想卸载插件。
 面板顶部的开关（或 `op:settings disabled:true`）就是那条退路：
 
-- 它记的是**时刻**，不是布尔值：创建时间**晚于**该时刻的会话才算「新会话」，
-  才不带拼图模式；
-- 所以**当前会话不受影响**——你是在这个会话里按下开关的，它出生在前；
-- `disabled:false` 恢复：所有会话（含禁用期间新建的）都回到拼图模式；
-- 它是**全局**的，存在 `$DSH_HOME/.dsh-puzzle-mode.json`，跨项目、跨 profile 一致。
+- 它按**会话 ID** 记名单，只影响被点名的那个会话——其余会话互不干扰；
+- 关掉**立即生效**：宿主每个 step 都重新拼装提示段，
+  所以本会话**下一轮**就不再注入拼图规则、也不再拦工具，不必等新会话；
+- `disabled:false` 恢复本会话；其他会话的禁用状态不受影响；
+- 名单存在 `$DSH_HOME/.dsh-puzzle-mode.json`，跨项目、跨 profile 一致。
 
 写文件坏掉 / 读不出来时一律当作「没禁用」：宁可少拦，也不要因为一个坏文件
 让所有会话都用不了拼图。
@@ -343,7 +347,7 @@ puzzle: 3
 | `audit` | 审查：客观发现 + 真实值 + 虚高清单 + 最弱维度 |
 | `source` | 记 / 查源码根 |
 | `mode` | 切换执行模式 |
-| `settings` | 全局开关：`disabled:true` 让**此后新建**的会话不带拼图模式（当前会话不受影响），`false` 恢复；不给参数只查询 |
+| `settings` | 按会话开关：`disabled:true` 让**当前这个会话**不带拼图模式（下一轮立即生效，其他会话不受影响），`false` 恢复本会话；不给参数只查询 |
 
 每次返回都带 `projectSource`（`explicit` / `bound` / `none`）与 `cwdSource`，
 「用的是哪个项目、项目根从哪来」始终可见，不会静默选错。
@@ -404,8 +408,8 @@ dsh plugin --profile web remove dsh-puzzle-mode
 只是**写入**要走插件（为了维持条目规格与路径守卫）。
 
 **Q：我只是想安静改个代码，不想被拼图模式管着，怎么办？**
-面板顶部的「新会话：关掉拼图模式」，或 `op:settings disabled:true`。
-它只对**此后新建**的会话生效，当前会话照旧——想恢复就再点一次。
+面板顶部的「关掉本会话的拼图模式」，或 `op:settings disabled:true`。
+它只影响**当前这个会话**，下一轮立即生效，其他会话照旧——想恢复就再点一次。
 不用卸载插件。
 
 ---

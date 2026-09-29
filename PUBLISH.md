@@ -7,7 +7,7 @@
 | 项 | 现状（2026-09-29） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.13.0（对新会话关掉拼图模式 + 修开关被「没绑项目」挡住的 bug） |
+| 版本 | v0.13.1（按会话关掉拼图模式，立即生效；v0.13.0 的全局时刻语义已作废） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
 | 注意 | GitHub API token 已实测有效（HTTP 200）；`git push` 走 SSH |

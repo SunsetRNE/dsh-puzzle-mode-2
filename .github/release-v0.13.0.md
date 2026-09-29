@@ -1,5 +1,10 @@
 ## 下载安装
 
+> ⚠️ **这一版已作废，请装 [v0.13.1](https://github.com/liancha22/dsh-puzzle-mode/releases/tag/v0.13.1)。**
+> v0.13.0 的开关是「全局时刻」语义，只对*此后新建*的会话生效，
+> 当前会话按下去毫无变化（用户反馈「怎么禁用没有效果」）。
+> v0.13.1 已改成**按会话**、且**立即生效**。
+
 ```bash
 python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.13.0
 ```
