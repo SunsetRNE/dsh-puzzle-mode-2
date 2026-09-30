@@ -7,7 +7,7 @@
 | 项 | 现状（2026-09-30） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.14.0（适配 DSH 0.2.0-rc.2；主文档第五节 `## 工作流`（≤5 条，删掉的进归档可恢复）；面板「主文档」只读查看 + 工作流模板；审查升级为执行方，产出可执行修复清单 `fixPlan`） |
+| 版本 | v0.15.0（面板适配电脑端：1240px 三栏工作台 + 手机单栏回退；美术走科幻 HUD，主题令牌化——换风格只改 `var THEME = ...` 一行；零新依赖，图标全内联 SVG。含 v0.14.0 的适配 0.2.0-rc.2 / 主文档 `## 工作流` / 审查执行方 `fixPlan`） |
 | 兼容 | DSH `^0.1.5-rc.2 \|\| ^0.1.6-rc.1 \|\| ^0.1.7-rc.2 \|\| ^0.2.0-rc.2`（peer 只声明 `@deepseek-ai/dsh-tools`；已实测把宿主半加载到 rc2 的 dsh-tools 上可用） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |

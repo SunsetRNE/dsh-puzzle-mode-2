@@ -14,7 +14,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.14.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.15.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（同时兼容 0.1.5-rc.2 ~ 0.1.7-rc.2）
 
 ---
@@ -24,7 +24,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.14.0
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.15.0
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -35,7 +35,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.14.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.14.0/dsh-puzzle-mode-0.14.0.tgz)
+[dsh-puzzle-mode-0.15.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.15.0/dsh-puzzle-mode-0.15.0.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -52,6 +52,42 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.15.0 · 面板适配电脑端 + 科幻 HUD 三栏工作台
+
+**适配电脑端：宽屏三栏工作台**
+
+- 面板从 680px 居中弹窗改成 **1240px 三栏工作台**：左＝项目与动作、中＝健康性与模块、
+  右＝文档与工作流。动作按钮按「干什么」分组，不再是一长排平铺。
+- **手机端一行没丢**：`@media (max-width:900px)` 自动堆叠回单栏。只有一个断点。
+- 空态 / 加载态 / 错误态**同样保持三栏骨架**，不退化。
+
+**美术：科幻 HUD（A 案）**
+
+- 玻璃面板（`@supports` 内才启用背景模糊）+ 纯 CSS 网格纹理 + 顶部主色高光；
+- 健康性**环形进度**（SVG `stroke-dasharray`）、等宽数字、**真实值双条对照**（虚高那段露出底层色）；
+- **9 个内联 SVG 图标**，`currentColor` 取色，零外部资源、零图标字体；
+- 首屏**三栏骨架屏**；动效克制（无循环动画），并尊重系统「减少动态效果」。
+
+**主题令牌化：换风格只改一行**
+
+- 所有颜色/圆角/阴影/字体/时长收口成 `--dshpz-*` 令牌。
+  `var THEME = THEME_HUD` ↔ `THEME_MINIMAL`（D 案极简，已写好）——
+  **布局与结构完全共用**，两案只差颜色/发光/圆角。
+- 基底引用宿主 `--dsw-alias-*` 语义令牌，宿主切浅色/深色时面板自动跟随。
+
+**修掉的 bug**
+
+- `tillefill` 拼写错误 → 模块卡进度条**一直没有样式**；
+- 真实值对照行复用 3 列网格导致**错位**（已拆独立类）；
+- `Panel` 多包一层 `.dshpz-panel` → 玻璃底与网格**叠了两次**；
+- **8 个颜色变量静默失效**：令牌名转换漏了字母→数字边界（`label1` → `--dshpz-label1`，
+  而 CSS 写 `var(--dshpz-label-1)`）。不报错，只是面板退回继承色。
+
+**兼容性回退**
+
+- 底色不用 `color-mix` 半透明（老浏览器会整块变透明）；`backdrop-filter` 放 `@supports`；
+- 发光退化值是**实心描边**而非无——发光是效果，选中态是信息。
 
 ### v0.14.0 · 适配 0.2.0-rc.2 + 主文档工作流 + 审查升级为执行方
 
