@@ -8,10 +8,14 @@
 拼图模式把这些决定落到**你随时能打开看的文件**里：主文档当查找入口，
 模块文档存细节，每条都带源码出处，随时能回查。
 
+主文档的第五节 `## 工作流` 反过来**约束 AI 自己**：写清「在什么操作下不要去做什么别的事」，
+随提示段注入，每一步都读得到；面板上一键删除、可单条恢复。
+
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.13.1** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.14.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 适配：**DSH 0.2.0-rc.2**（同时兼容 0.1.5-rc.2 ~ 0.1.7-rc.2）
 
 ---
 
@@ -20,7 +24,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.13.1
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.14.0
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -31,8 +35,8 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.13.1.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.13.1/dsh-puzzle-mode-0.13.1.tgz)
-（约 118 KB，含全部源码）
+[dsh-puzzle-mode-0.14.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.14.0/dsh-puzzle-mode-0.14.0.tgz)
+（含全部源码）
 
 **方式三 · dsh CLI**
 
@@ -48,6 +52,40 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.14.0 · 适配 0.2.0-rc.2 + 主文档工作流 + 审查升级为执行方
+
+**适配 DSH 0.2.0-rc.2**
+
+- 逐面包对比 rc1 → rc2：`tools`（`defineTool` / `tools/pre-execute`）、`systemPrompt.section`、
+  `webServer.register` + `connection.requestRejection`、`client-modules`（`__ModuleLoader__`）
+  **四处契约均无破坏性变更**；`conversation.input.left` 的 slot 契约与注入 props 也逐字相同。
+- **真会挡住安装的一处**：`peerDependencies` 的 `^0.1.5-rc.2` 按 semver 预发布规则
+  连已装的 `0.1.7-rc.2` 都不满足。已改成显式列举 `^0.1.5-rc.2 || ^0.1.6-rc.1 || ^0.1.7-rc.2 || ^0.2.0-rc.2`。
+- 已实测：宿主半加载到 **rc2 的 `dsh-tools`** 上，工具注册、schema 校验、
+  `op:read` / `op:main-doc` / `op:audit` / `op:workflow` 全部正常。
+
+**主文档新增第五节 `## 工作流`（文档格式 v3 → v4）**
+
+- 约束模型「在特定操作下不去做别的事」，随提示段注入；**≤5 条**、超了删最旧，
+  **不要求源码出处**（它约束行为，不是对代码事实的断言）；
+- 一键删除**可回滚**：删掉的进 front-matter 的 `工作流归档:`（≤10 条，与正文分离，
+  所以**不占 5 条上限**），`op:workflow action:'restore'` 单条恢复；
+- 越界**报错不猜**（防界面过期时删错条）；恢复挤满时如实报 `evicted`。
+
+**面板**
+
+- 「主文档」按钮：**只读**查看主文档全文（含 front-matter 与五节）；
+- 工作流区：每条带编号与「✕ 删除」（二次确认）+ 归档区「恢复」；
+- 「工作流模板」按钮：一键把提示词填进输入框（不自动发送），先问目标再落盘。
+
+**审查升级为执行方**
+
+- `op:audit` 产出 `fixPlan`：`{ kind, severity, target, fact, fix, expect }`，
+  分 `structure` / `doc` / `health` / `vulnerability` / `redundancy` 五类；
+- `vulnerability` 与 `redundancy` **由模型读源码后补**（体检读不到函数体，编出来是假漏洞）；
+- **硬规则**：先给用户看清单 → `ask_user_question` 问「哪些现在就改」→ 用户点了才改源码 →
+  改完**必须重跑 `op:audit` 复测**；审查轮本身不改源码。
 
 ### v0.13.1 · 关掉某个会话的拼图模式
 

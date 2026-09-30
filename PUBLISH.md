@@ -4,10 +4,11 @@
 
 ## 0. 状态
 
-| 项 | 现状（2026-09-29） |
+| 项 | 现状（2026-09-30） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.13.1（按会话关掉拼图模式，立即生效；v0.13.0 的全局时刻语义已作废） |
+| 版本 | v0.14.0（适配 DSH 0.2.0-rc.2；主文档第五节 `## 工作流`（≤5 条，删掉的进归档可恢复）；面板「主文档」只读查看 + 工作流模板；审查升级为执行方，产出可执行修复清单 `fixPlan`） |
+| 兼容 | DSH `^0.1.5-rc.2 \|\| ^0.1.6-rc.1 \|\| ^0.1.7-rc.2 \|\| ^0.2.0-rc.2`（peer 只声明 `@deepseek-ai/dsh-tools`；已实测把宿主半加载到 rc2 的 dsh-tools 上可用） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
 | 注意 | GitHub API token 已实测有效（HTTP 200）；`git push` 走 SSH |
