@@ -16,6 +16,7 @@
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
 - 最新版：**v0.16.4** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
+- **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
 ---
 

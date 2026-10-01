@@ -119,6 +119,6 @@ EOF
 | --- | --- | --- |
 | 测试 | **不跑** | 工作约定：不写测试、不跑测试（`npm test` 里的旧自检断言钉死 v2 形状，红了不追）。验收判据写进该版本 Release 正文，交用户真机看 |
 | 语法 | `for f in lib/*.js; do node --check "$f"; done` | 无输出 |
-| 打包内容 | `npm pack --dry-run` | 只有 `lib/ test/ cordis.patch.yml README.md PUBLISH.md LICENSE package.json`，无密钥 |
+| 打包内容 | `npm pack --dry-run` | 只有 `lib/ test/ cordis.patch.yml README.md UI.md PUBLISH.md LICENSE package.json`，无密钥 |
 | Release 附件 | 见「3. 发布新版本」 | Release 页有 `dsh-puzzle-mode-X.Y.Z.tgz`（**`release.sh` 不会自动传**） |
 | 配置可组合 | `dsh --profile web --dump-config \| grep -A2 dsh-puzzle-mode` | 出现 `# == dsh-puzzle-mode` |

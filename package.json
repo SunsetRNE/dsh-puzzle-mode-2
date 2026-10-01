@@ -15,6 +15,7 @@
     "test",
     "cordis.patch.yml",
     "README.md",
+    "UI.md",
     "PUBLISH.md",
     "LICENSE"
   ],
