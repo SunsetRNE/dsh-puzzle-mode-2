@@ -37,7 +37,12 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.16.4
 | --- | --- | --- |
 | 不读就拆模块 | 文档一出生就是**编的** | 第 1 步「先看再定名（不要跳过）」 |
 | `op:init` 对已存在的项目**不动绑定** | 面板**停在空态**，像建失败了 | 第 2 步：`rebound:false` 就**必须补 `op:bind`** |
-| 源码根默认按「拼图目录的上一级」找 | 源码索引与**源码体检全空** | 第 3 步：显式 `op:source` 记工作区根，并复查 `fileCount` |
+| 源码根默认按「拼图目录的上一级」= **项目文件夹** | 源码索引与**源码体检全空** | 第 3 步：显式 `op:source` 记工作区根，并复查 `fileCount` |
+
+> 第三条已实测：项目名 `ws`、代码在 `/tmp/adopt3/ws/lib/core.js` 时，
+> 不记源码根 → `base=/tmp/adopt3/ws/ws`、`fileCount=0`；
+> `op:source path:'/tmp/adopt3/ws'` 之后 → `fileCount=1`。
+> 默认规则指到的是**新建出来的项目文件夹**（里面只有文档），所以这一步不能省。
 
 > 第二条是 **v0.13.1 为修「解绑后又自动绑定」故意加的**行为（`createProject` 里
 > `shouldBind = mainCreated && …`）。它对，但会让「照现有项目搭文档」这条路
