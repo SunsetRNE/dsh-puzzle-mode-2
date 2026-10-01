@@ -50,13 +50,32 @@ ln -s ~/.dsh/plugin-src/dsh-puzzle-mode <profile>/node_modules/dsh-puzzle-mode
 
 ```bash
 cd /root/.dsh/plugin-src/dsh-puzzle-mode
-# 1) 改 package.json 的 version（例如 0.16.5）+ 在 .github/ 写好 release-vX.Y.Z.md
-# 2) 不跑测试（工作约定：不写测试、不跑测试；验收判据写进 Release 正文，交用户真机看）
+# 1) 改 package.json 的 version（例如 0.16.6）+ 在 .github/ 写好 release-vX.Y.Z.md
+# 2) **同步文档版本引用**（漏了会被用户抓到，见下「发版检查清单」）
+# 3) 不跑测试（工作约定：不写测试、不跑测试；验收判据写进 Release 正文，交用户真机看）
 for f in lib/*.js; do node --check "$f" || echo "FAIL $f"; done   # 只做语法解析，防手滑
 git add -A && git commit -m "feat: …（vX.Y.Z）"
 git tag -f vX.Y.Z && git push origin HEAD --tags
 bash tools/release.sh vX.Y.Z          # 建 Release（正文取 .github/release-vX.Y.Z.md）
 ```
+
+### ⚠️ 发版检查清单（每次都要过一遍）
+
+改完代码**不等于**发完版。README / PUBLISH / UI / package.json **都在 npm 包的 `files` 里**，
+一改旧附件就过期，必须重传。逐项核对：
+
+| # | 文件 | 要改什么 |
+| --- | --- | --- |
+| 1 | `README.md` | 头部「最新版」、安装命令、tgz 下载链接**三处**，再加一个新版本小节 |
+| 2 | `README.md` | 只留最近 3 个版本的小节，更早的挪进 `CHANGELOG.md` |
+| 3 | `CHANGELOG.md` | 接收从 README 挪下来的旧版本小节 |
+| 4 | `UI.md` | 头部「对应 vX.Y.Z」 |
+| 5 | `PUBLISH.md` | 第 0 节状态表的版本与日期 |
+| 6 | `package.json` | `version`（description 只留一句当前亮点，**别堆版本历史**） |
+| 7 | `.github/release-vX.Y.Z.md` | 新版本的正文 + 「验收判据」一节 |
+
+> 第 1 条是**用户明确要求**的（2026-10-01）：「每次有更新都要改 readme」。
+> 已经写进拼图文档的 `## 工作流`，每一步都会注入。
 
 > 标签已存在时要 `git tag -f` **加** `git push -f origin vX.Y.Z`：
 > 只 `git push origin HEAD --tags` 会被 `! [rejected] (already exists)` 挡回来。
