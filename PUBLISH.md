@@ -49,23 +49,59 @@ ln -s ~/.dsh/plugin-src/dsh-puzzle-mode <profile>/node_modules/dsh-puzzle-mode
 ## 3. 发布新版本
 
 ```bash
-cd ~/.dsh/plugin-src/dsh-puzzle-mode
-npm test                       # v3 起旧自检已过期（断言钉死 v2 形状），不追红；验收判据见该版本 Release 正文
-# 改 package.json 的 version（例如 0.1.1）
-git add -A && git commit -m "chore(release): v0.1.1"
-git tag v0.1.1 && git push origin HEAD --tags
+cd /root/.dsh/plugin-src/dsh-puzzle-mode
+# 1) 改 package.json 的 version（例如 0.16.5）+ 在 .github/ 写好 release-vX.Y.Z.md
+# 2) 不跑测试（工作约定：不写测试、不跑测试；验收判据写进 Release 正文，交用户真机看）
+for f in lib/*.js; do node --check "$f" || echo "FAIL $f"; done   # 只做语法解析，防手滑
+git add -A && git commit -m "feat: …（vX.Y.Z）"
+git tag -f vX.Y.Z && git push origin HEAD --tags
+bash tools/release.sh vX.Y.Z          # 建 Release（正文取 .github/release-vX.Y.Z.md）
 ```
 
-需要一个 GitHub Release（而不是只打 tag）时：
+> 标签已存在时要 `git tag -f` **加** `git push -f origin vX.Y.Z`：
+> 只 `git push origin HEAD --tags` 会被 `! [rejected] (already exists)` 挡回来。
+
+### ⚠️ 附件必须单独上传（`release.sh` **不会**做这件事）
+
+`tools/release.sh` 只建 Release，**不传 tgz**。漏了这一步，Release 页就没有下载附件
+（v0.16.0 曾因此缺附件，事后才补）。补传：
 
 ```bash
-curl -sS -X POST -H "Authorization: Bearer $(cat /root/.dsh/.github-token)" \
-  -H 'Content-Type: application/json' \
-  -d '{"tag_name":"v0.1.1","name":"v0.1.1","generate_release_notes":true}' \
-  https://api.github.com/repos/liancha22/dsh-puzzle-mode/releases
+npm pack                              # 产出 dsh-puzzle-mode-X.Y.Z.tgz
+TOKEN=$(cat /root/.dsh/.github-token)
+RID=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  https://api.github.com/repos/liancha22/dsh-puzzle-mode/releases/tags/vX.Y.Z \
+  | python3 -c "import sys,json;print(json.load(sys.stdin)['id'])")
+curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/gzip" \
+  --data-binary @dsh-puzzle-mode-X.Y.Z.tgz \
+  "https://uploads.github.com/repos/liancha22/dsh-puzzle-mode/releases/$RID/assets?name=dsh-puzzle-mode-X.Y.Z.tgz"
 ```
 
-`dsh plugin --profile web add liancha22/dsh-puzzle-mode#v0.1.1` 也能按 tag 装。
+**重传（改了文档要刷新附件）**：先删旧附件再传，否则会多出一个 `-1` 后缀的同名附件。
+
+```bash
+AID=$(curl -s -H "Authorization: Bearer $TOKEN" \
+  https://api.github.com/repos/liancha22/dsh-puzzle-mode/releases/$RID/assets \
+  | python3 -c "import sys,json;a=json.load(sys.stdin);print(a[0]['id'] if a else '')")
+curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
+  https://api.github.com/repos/liancha22/dsh-puzzle-mode/releases/assets/$AID
+```
+
+改过 Release 正文（`.github/release-vX.Y.Z.md`）后同步到页面上：
+
+```bash
+python3 - "$TOKEN" <<'EOF'
+import json,sys,urllib.request
+tok=sys.argv[1]; rid=0  # ← 填 release id
+body=open('.github/release-vX.Y.Z.md',encoding='utf-8').read()
+req=urllib.request.Request(f"https://api.github.com/repos/liancha22/dsh-puzzle-mode/releases/{rid}",
+  data=json.dumps({"body":body}).encode(), method="PATCH",
+  headers={"Authorization":f"Bearer {tok}","Content-Type":"application/json"})
+urllib.request.urlopen(req)
+EOF
+```
+
+`dsh plugin --profile web add liancha22/dsh-puzzle-mode#vX.Y.Z` 也能按 tag 装。
 
 ## 4. 关于发 npm（暂不做）
 
@@ -81,7 +117,8 @@ curl -sS -X POST -H "Authorization: Bearer $(cat /root/.dsh/.github-token)" \
 
 | 项 | 命令 | 期望 |
 | --- | --- | --- |
-| 测试 | `npm test` | v3 起旧自检已过期，不追红；真机按该版本 Release 正文的「验收判据」看 |
-| 语法 | `node --check lib/*.js` | 无输出 |
-| 打包内容 | `npm pack --dry-run` | 只有 `lib/ test/ cordis.patch.yml README.md LICENSE package.json`，无密钥 |
+| 测试 | **不跑** | 工作约定：不写测试、不跑测试（`npm test` 里的旧自检断言钉死 v2 形状，红了不追）。验收判据写进该版本 Release 正文，交用户真机看 |
+| 语法 | `for f in lib/*.js; do node --check "$f"; done` | 无输出 |
+| 打包内容 | `npm pack --dry-run` | 只有 `lib/ test/ cordis.patch.yml README.md PUBLISH.md LICENSE package.json`，无密钥 |
+| Release 附件 | 见「3. 发布新版本」 | Release 页有 `dsh-puzzle-mode-X.Y.Z.tgz`（**`release.sh` 不会自动传**） |
 | 配置可组合 | `dsh --profile web --dump-config \| grep -A2 dsh-puzzle-mode` | 出现 `# == dsh-puzzle-mode` |
