@@ -15,7 +15,7 @@
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
 - 最新版：**v0.16.0** · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
-- 适配：**DSH 0.2.0-rc.2**（同时兼容 0.1.5-rc.2 ~ 0.1.7-rc.2）
+- 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 
 ---
 
@@ -152,7 +152,12 @@ front-matter 里还写着旧名字时，模式区下方出现一行提示：文�
   `webServer.register` + `connection.requestRejection`、`client-modules`（`__ModuleLoader__`）
   **四处契约均无破坏性变更**；`conversation.input.left` 的 slot 契约与注入 props 也逐字相同。
 - **真会挡住安装的一处**：`peerDependencies` 的 `^0.1.5-rc.2` 按 semver 预发布规则
-  连已装的 `0.1.7-rc.2` 都不满足。已改成显式列举 `^0.1.5-rc.2 || ^0.1.6-rc.1 || ^0.1.7-rc.2 || ^0.2.0-rc.2`。
+  连已装的 `0.1.7-rc.2` 都不满足。已改成显式列举。
+  **该列举在 v0.16.1 又修过一次**：原先写的是 `^0.1.6-rc.1`，而
+  `dsh-tools` 的 0.1.6 系列**只有 alpha**、从没发过 rc —— 按 semver 预发布元组规则
+  `0.1.6-alpha.2 < 0.1.6-rc.1`，于是整个 0.1.6-alpha 与 0.1.7-alpha 系列
+  都被排除在外（连 `0.1.7-rc.1`、`0.2.0-rc.1` 也没覆盖）。现在按每个 minor
+  锚到它**最早存在的预发布版**，13 个已发布版本全部覆盖。
 - 已实测：宿主半加载到 **rc2 的 `dsh-tools`** 上，工具注册、schema 校验、
   `op:read` / `op:main-doc` / `op:audit` / `op:workflow` 全部正常。
 

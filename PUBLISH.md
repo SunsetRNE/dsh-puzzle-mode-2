@@ -7,8 +7,8 @@
 | 项 | 现状（2026-09-30） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.16.0（执行模式两种拆三种：旧「边拼边写」改名「写后再拼」、新「边拼边写」= 每个写动作前先问；文档格式 v5 带旧名归一化。含 v0.15.0 的电脑端三栏工作台与手机单栏回退、v0.14.0 的 rc.2 适配 / 主文档 `## 工作流` / 审查执行方 `fixPlan`） |
-| 兼容 | DSH `^0.1.5-rc.2 \|\| ^0.1.6-rc.1 \|\| ^0.1.7-rc.2 \|\| ^0.2.0-rc.2`（peer 只声明 `@deepseek-ai/dsh-tools`；已实测把宿主半加载到 rc2 的 dsh-tools 上可用） |
+| 版本 | v0.16.1（修 peer 版本范围：原 `^0.1.6-rc.1` 指向从未发布的版本，导致 0.1.6-alpha / 0.1.7-alpha 全系列被排除；含 v0.16.0 的执行模式两种拆三种、v0.15.0 的三栏工作台与手机单栏回退） |
+| 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
 | 注意 | GitHub API token 已实测有效（HTTP 200）；`git push` 走 SSH |
