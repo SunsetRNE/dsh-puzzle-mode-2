@@ -7,7 +7,7 @@
 | 项 | 现状（2026-09-30） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.16.1（修 peer 版本范围：原 `^0.1.6-rc.1` 指向从未发布的版本，导致 0.1.6-alpha / 0.1.7-alpha 全系列被排除；含 v0.16.0 的执行模式两种拆三种、v0.15.0 的三栏工作台与手机单栏回退） |
+| 版本 | v0.16.4（空态新增「照现有项目搭文档」：给项目已在工作区、只是没有文档的老会话补文档，不采访、先读真实源码，`op:init` 后补 `op:bind` + `op:source`；已绑定态「新建文档」改名「新增模块文档」。含 v0.16.3 的 `op:module` 加模块、v0.16.2 的样式修复与自检、v0.16.1 的 peer 范围修复、v0.16.0 的执行模式两种拆三种、v0.15.0 的三栏工作台与手机单栏回退） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
