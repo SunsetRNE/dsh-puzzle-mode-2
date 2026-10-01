@@ -54,6 +54,38 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 
 ## 最新版本
 
+### v0.16.5 · 修「样式自检」自己报假警（两处代码 bug）
+
+有人的面板**看起来是好的**，却在顶部显示「⚠ 面板样式没有生效」，
+并给出 `applied=false inset=false color-mix=false backdrop=false min()=false`。
+UA 是 **Chrome 152** —— 一个四项全不支持的浏览器并不存在。**是自检自己坏了**：
+
+**bug ① · 探针自己写了 `position:absolute`。**
+探针是 `.dshpz-backdrop` 的一个 div，用 `getComputedStyle().position === 'fixed'` 判定
+样式表有没有生效。但它同时写了行内 `position:absolute`，而**行内样式的优先级高于样式表** ——
+于是 `position` 恒为 `absolute`，`applied` 在**任何**浏览器上都是 `false`。
+
+修法：探针只负责挪出视口（`left:-9999px`），`position` 交给样式表判定。
+
+**bug ② · `CSS.supports` 里的 `CSS` 被本文件的样式表字符串遮蔽了。**
+本文件有 `var CSS = [...]`（样式表本身）。原先写 `CSS.supports(…)`，
+取到的是**字符串的** `undefined` 属性 → `CSS.supports !== undefined` 为假 → `&&` 短路 →
+`inset` / `color-mix` / `backdrop` / `min()` **四项一律返回 `false`**。
+这正是那行报告里四项全 `false` 的来源。
+
+修法：改走 `window.CSS.supports(…)`，不再用裸 `CSS`。
+
+**顺带把诊断行改成可信的**：原先 `applied=false` 是**写死在字面量里**的，
+于是「自检误报」与「真的没生效」看起来一模一样。现在 `applied` 取真实值，
+并新增一项 `rules=`（`<style>` 的 `cssRules` 条数，CSP 拦掉时为 `null`）：
+
+```
+puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… backdrop=… min()=… ua=…
+```
+
+`applied=false` 且 `rules=null` 才是「样式表没进文档」（CSP / 被别的插件清掉）；
+`applied=false` 而 `rules>0` 说明表进了文档、只是没盖住探针。
+
 ### v0.16.4 · 空态新增「照现有项目搭文档」（老会话补文档）
 
 **场景**：新装插件的人，手上是一堆**老会话**——每个会话都在做真实项目，
@@ -130,16 +162,20 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 → **面板全透明**。修法：拆成两个独立的 `@supports`，各问各的。
 
 **另加「样式自检」**（这条最有用）：把「这张表到底有没有生效」变成可远程汇报的一行事实。
-注入 `<style>` 后探一个 `.dshpz-backdrop` 读 `getComputedStyle().position`，再用 `CSS.supports`
-逐项探 `inset` / `color-mix` / `backdrop-filter` / `min()`。任何一项为假，面板顶部直接显示：
+注入 `<style>` 后探一个 `.dshpz-backdrop` 读 `getComputedStyle().position`，再用
+`window.CSS.supports` 逐项探 `inset` / `color-mix` / `backdrop-filter` / `min()`。
+任何一项为假，面板顶部直接显示：
 
 ```
-puzzle-style-diag applied=false inset=… color-mix=… backdrop=… min()=… ua=…
+puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… backdrop=… min()=… ua=…
 ```
 
 > 这一行的用途：老 WebView / CSP / 别的插件清样式，症状都是「面板能开但没样式」，
 > **靠猜分不出是哪一类**。把这一行发回来，就能直接定位。自检整段包在 `try/catch` 里——
 > 探针本身绝不能把面板弄崩。
+>
+> ⚠️ **v0.16.5 之前这行不可信**：`applied` 写死成 `false`、四项特性因 `CSS` 被遮蔽而恒为
+> `false`，于是**样式完全正常的面板也会报「没生效」**。见到这行先升到 v0.16.5。
 
 ### v0.16.1 · 修掉一个「声明了但等于没声明」的 peer 范围
 
@@ -687,11 +723,15 @@ dsh plugin --profile web remove dsh-puzzle-mode
 与 `color-mix` 两个坑）。若仍然如此，面板顶部会显示一行自检：
 
 ```
-puzzle-style-diag applied=false inset=… color-mix=… backdrop=… min()=… ua=…
+puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… backdrop=… min()=… ua=…
 ```
 
-把这一行发回来即可定位（`applied=false` 说明整张样式表都没生效，
-多半是老 WebView、CSP 或别的插件清了样式）。
+把这一行发回来即可定位（`applied=false` 且 `rules=null` 说明样式表根本没进文档，
+多半是 CSP 或别的插件清了样式）。
+
+> ⚠️ **若你看到的是 `applied=false` 加四项全 `false`，先别急着排障** ——
+> 那多半是 **v0.16.5 之前的自检 bug**（`applied` 写死、`CSS` 被遮蔽），
+> 与你的浏览器无关。升到 **v0.16.5** 再看这行。
 
 **Q：装上了但提示不兼容 / 根本没生效？**
 看 `peerDependencies` 覆盖不覆盖你的 DSH 版本。v0.16.1 修过一次**声明了但等于没声明**的

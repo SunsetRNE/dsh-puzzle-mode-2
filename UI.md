@@ -42,9 +42,12 @@
 | ⚠️ 样式自检 | 样式表没生效（`applied=false`） | 把那一行 `puzzle-style-diag …` 发回作者 |
 
 > 样式自检那一行长这样：
-> `puzzle-style-diag applied=false inset=… color-mix=… backdrop=… min()=… ua=…`
+> `puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… backdrop=… min()=… ua=…`
 > 它是「面板能开但没样式」的唯一可靠线索 —— 老 WebView、CSP、别的插件清样式，
 > 症状都一样，靠猜分不出来。
+>
+> ⚠️ **v0.16.5 之前这一行会误报**：`applied` 被写死成 `false`、四项特性因 `CSS` 被遮蔽
+> 也恒为 `false`，**样式完全正常的面板照样显示这条警告**。见到它先升到 v0.16.5。
 
 ---
 

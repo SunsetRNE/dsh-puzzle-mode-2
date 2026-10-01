@@ -87,19 +87,26 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.16.2
 v0.16.2 起，**样式没生效时面板会自己说出来**，并显示一行环境指纹：
 
 ```
-puzzle-style-diag applied=false inset=… color-mix=… backdrop=… min()=… ua=…
+puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… backdrop=… min()=… ua=…
 ```
 
 把这一行（连同截图）发出来即可。各项含义：
 
-| 字段 | `false` 意味着 |
+| 字段 | 含义 |
 | --- | --- |
-| `applied` | **样式表没生效**（这一项是结论，其余是成因线索） |
-| `inset` | 不支持 `inset` 简写 → 成因 A |
-| `color-mix` | 不支持 `color-mix()` → 成因 B |
-| `backdrop` | 不支持背景模糊（不影响可用性，只影响观感） |
-| `min()` | 不支持 `min()` → 面板宽度会退化成内容宽 |
+| `applied` | 样式表有没有盖住探针；`false` = **样式表没生效**（这一项是结论，其余是成因线索） |
+| `rules` | `<style>` 的 `cssRules` 条数；`null` = **样式表压根没进文档**（CSP / 被清掉） |
+| `inset` | `false` = 不支持 `inset` 简写 → 成因 A |
+| `color-mix` | `false` = 不支持 `color-mix()` → 成因 B |
+| `backdrop` | `false` = 不支持背景模糊（不影响可用性，只影响观感） |
+| `min()` | `false` = 不支持 `min()` → 面板宽度会退化成内容宽 |
 | `ua` | 浏览器 UA，用来判断 WebView 版本 |
+
+> ⚠️ **若 `applied=false` 且 `inset`/`color-mix`/`backdrop`/`min()` 四项全 `false`，
+> 先别排障**：那几乎一定是 **v0.16.5 之前的自检 bug**，不是你的浏览器。
+> 成因：探针行内写了 `position:absolute` 盖掉样式表（`applied` 恒 `false`）；
+> `CSS.supports` 里的 `CSS` 被本文件的样式表字符串遮蔽（四项恒 `false`）。
+> **升到 v0.16.5 再看这一行。**
 
 ### 方式 3：手查（没升级时）
 
