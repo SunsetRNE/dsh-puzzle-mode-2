@@ -35,6 +35,9 @@ jobs:
       # 本机（开发机）上 verify:cross 会真的读 dsh-infinite-gen-5 做双向互校；
       # CI 上没有那个仓库 —— 走的是「对方不在场 → 互校跳过」分支。
       # 这一分支必须也能跑通，否则 CI 会红在本机永远走不到的那条路上（v0.59.2 的真实事故）。
+      - name: 互校结果记一行（CI 无推送权限，只打印；本机跑会落盘到 compat-log.jsonl）
+        run: npm run --silent log:compat
+
       - name: 说明（对方不在场时的期望行为）
         run: echo "CI 无 dsh-infinite-gen-5 → 握手校验走「互校跳过」分支并标注，不判失败"
 
