@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.19.3（修一条**通用缺陷**：返回体积改为 ∝ 本次改变了什么，而不是 ∝ 项目规模。写操作只回回执——7026→1192 字符（省 83%）；审查证据抽成 `evidenceTable` 去重表、各处只留 `evidence:[下标]`（同一句曾重复 39 次、114 次出现仅 12 条唯一）→ 实测响应 43KB→28KB（省 35%）；`inflation[].because` 纯副本删除；`AUDIT_PROMPT` 默认不回吐（提示段已有一份，`verbose:true` 取回）。判据已写进提示段防复发。含 v0.19.2 教程图） |
+| 版本 | v0.19.4（提问放开：一轮最多 **10 问**、每题最多 **10 个选项**。原先只写「最多 5 问」且**完全不提选项数**——问题数放开但每题还是两三个选项，等于没放开，所以这一版同时给出选项上限并写进「别只给两三个」的规则。两个数收进 `lib/constants.js` 的 `ASK_MAX_QUESTIONS` / `ASK_MAX_OPTIONS` 一处定义，提示段、首轮注入、`op:init` 回执、面板模板与底部提示全部引用它；`client.js` 是手写 module-loader 包拿不到 ESM 导出，同值另存一份。**刻意不加校验**：`ask_user_question` 在 DSH 核心无任何数量校验，插件侧拦了反而会在核心调默认值时误报。含 v0.19.3 返回体积修复与 v0.19.2 教程图） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
