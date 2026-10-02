@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.19.0（新会话**直接发需求**自动走「采访后再建」：宿主半注册 `agent/pre-step`，在每步进模型前确定性判定——首步 + 用户发的非空文本 + 本会话未绑项目 + 不是寒暄且没说「别采访」，命中后在需求之后追加一条上下文（只追加，从不 reject/deny，出错原样放行）；工作区已有项目时先问「绑定已有还是新建」；`op:read` 带 `firstRun:{fired,note}` 可观测。含 v0.18.0 的函数形状审查判据） |
+| 版本 | v0.19.1（修 v0.19.0 首轮判定的两个真缺陷：判据从 `step === 1` 改为 `turn === 1 && step === 1`（`AgentLoop` 每 turn 归零 step，恢复的历史会话会误触发）、新增 `isDelegatedSession` 排除子代理（其首条 prompt 同样是 `role:'user'` 但没有用户可问）；外加一轮 `op:audit` 的三条：`markFired` 落闸太早致「报 fired 却未注入」、`resetFired` 死导出、触发条件文案 4 处漂移收成 `FIRST_RUN_CONDITIONS` 单一来源。含 v0.19.0 的首轮自动判定与 v0.18.0 的函数形状审查判据） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |

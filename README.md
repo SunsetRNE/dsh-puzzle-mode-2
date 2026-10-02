@@ -15,7 +15,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.19.0** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.19.1** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -26,7 +26,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.0
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.1
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -37,7 +37,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.19.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.0/dsh-puzzle-mode-0.19.0.tgz)
+[dsh-puzzle-mode-0.19.1.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.1/dsh-puzzle-mode-0.19.1.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -54,6 +54,26 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.19.1 · 修 v0.19.0 首轮判定的两个真缺陷 + 三处审查发现
+
+**没有新功能**——只修 v0.19.0 自己的问题。两个是发版前核对时抓出的真缺陷，
+三个来自一轮 `op:audit`（漏洞 1 + 冗余 2）。
+
+- **`step === 1` 不是「新会话」**：`AgentLoop` **每个 turn 都把 `step` 归零**，
+  于是冷恢复的历史会话下一条消息就命中「首步」，被当成第一条需求开始采访。
+  判据改成 `turn === 1 && step === 1`（`turn` 来自 `turnBoundary` 会话投影，
+  由持久化日志重建，跨进程成立）。
+- **子代理被误注入**：hook 注册在**根级 ctx**，对每个 agent 都生效；
+  子代理的首条 prompt 同样是 `role:'user'` + `source.kind:'user'`，但**它没有用户可问**。
+  新增 `isDelegatedSession(agent)` 按会话头部（`origin` / `parentSession` / `delegationDepth`）识别并跳过。
+- **`markFired` 落闸太早**（漏洞）：先落闸再造上下文，中间任一步抛错就被 `catch` 吞掉，
+  **闸门已关、提示没注入，`fired` 却报 true**。改成先造上下文、最后落闸。
+- **`resetFired` 是死导出**（冗余）：导出 + 导入但全仓库无调用点，注释里的
+  「面板重新判定」按钮并不存在。删掉。
+- **触发条件文案漂移**（冗余）：条件原先 4 处各写一份，`summary.js` 的 `note`
+  在判据改过之后**没跟上**，面板显示的规则与真实判据互相矛盾。
+  收成 `FIRST_RUN_CONDITIONS` 单一来源。
 
 ### v0.19.0 · 新会话直接发需求，自动走「采访后再建」
 
