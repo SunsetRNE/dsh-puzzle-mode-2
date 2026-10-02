@@ -58,6 +58,42 @@ if (ig5) {
   ok('未装无限五代 → 跳过握手核对', true, IG5_DIRS.join(' | '))
 }
 
+
+// ── 双向互校（v0.19.9）：读双方的声明，两两核对，任一侧改数字即报错 ──
+{
+  const compatPath = join(ROOT, 'compat.json')
+  if (!existsSync(compatPath)) {
+    ok('本仓 compat.json 在场（互校契约）', false, compatPath)
+  } else {
+    const decl = JSON.parse(readFileSync(compatPath, 'utf8'))
+    ok('本仓 compat.json 契约在场', decl.contract === 'ig5-puzzle-coexist/1', decl.contract)
+    ok('本仓声明的默认段序与 lib 内实现一致', decl.puzzleDefaultOrder === defaultOrder,
+      `compat.json ${decl.puzzleDefaultOrder} / lib ${defaultOrder}`)
+
+    const ig5 = IG5_DIRS.find((d) => existsSync(join(d, 'data', 'arbitration.mjs')))
+    if (!ig5) {
+      ok('未装无限五代 → 互校跳过（契约已声明）', true, 'compat.json 已记录双方数字')
+    } else {
+      const arb = readFileSync(join(ig5, 'data', 'arbitration.mjs'), 'utf8')
+      const num = (re) => Number((arb.match(re) || [])[1])
+      const ig5Tail = num(/IG5_TAIL_ORDER = (\d+)/)
+      const ig5ForkDefault = num(/PZ_ORDER_FORK_DEFAULT = (\d+)/)
+      // 方向 A：对方记的「拼图默认段序」== 本仓默认
+      ok('互校 A：无限五代记的拼图默认段序 == 本仓默认',
+        ig5ForkDefault === decl.puzzleDefaultOrder,
+        `ig5 ${ig5ForkDefault} / compat.json ${decl.puzzleDefaultOrder}`)
+      // 方向 B：对方记的「末位锚点」== 本仓契约里记的
+      ok('互校 B：无限五代记的末位锚点 == 本仓契约里记的',
+        ig5Tail === decl.ig5TailOrder,
+        `ig5 ${ig5Tail} / compat.json ${decl.ig5TailOrder}`)
+      // 方向 C：关系成立（默认段序在末位锚点之前）
+      ok('互校 C：段序关系成立（拼图默认 < 无限五代末位锚点）',
+        decl.puzzleDefaultOrder < decl.ig5TailOrder,
+        `${decl.puzzleDefaultOrder} < ${decl.ig5TailOrder}`)
+    }
+  }
+}
+
 const failed = results.filter((r) => !r.ok)
 for (const r of results) console.log(`  ${r.ok ? '✅' : '❌'} ${r.claim}${r.detail ? ' — ' + r.detail : ''}`)
 console.log(`\n跨插件握手校验： ${results.length - failed.length} 通过 / ${failed.length} 失败（共 ${results.length} 项）${ig5 ? ' · 已核对 ' + ig5 : ''}`)

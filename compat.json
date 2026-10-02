@@ -1,0 +1,13 @@
+{
+  "contract": "ig5-puzzle-coexist/1",
+  "ig5TailOrder": 10150,
+  "puzzleDefaultOrder": 10100,
+  "puzzleSectionName": "puzzle-mode:policy",
+  "ig5ArbitrationFile": "data/arbitration.mjs",
+  "ig5ArbitrationConstants": {
+    "tailOrder": "IG5_TAIL_ORDER",
+    "forkDefault": "PZ_ORDER_FORK_DEFAULT",
+    "upstream0197": "PZ_ORDER_UPSTREAM_0197"
+  },
+  "notes": "两侧互校用的契约：本仓（拼图复刻仓）与 dsh-infinite-gen-5 各自声明同一组段序数字；任一方的 verify 脚本都读对方这一份并双向核对，任一侧改数字而另一侧没跟上即报错。"
+}
