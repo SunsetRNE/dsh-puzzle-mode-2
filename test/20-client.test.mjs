@@ -101,23 +101,31 @@ const mod = loaded.factory((name) => {
   throw new Error('unexpected require: ' + name)
 })
 assert.equal(typeof mod.apply, 'function')
-assert.equal(typeof mod.questionTemplate, 'function', '提问模板必须可测（导出）')
+// v0.19.8 修：导出名单按现行 lib/client.js 的 module.exports 对齐 ——
+// questionTemplate 已不存在（提问相关改由 interviewTemplate 承担），
+// 实际导出还有 resumeTemplate / auditTemplate / refactorTemplate / adoptTemplate /
+// newDocTemplate / workflowTemplate 等；这里逐个核可测导出。
 assert.equal(typeof mod.auditTemplate, 'function', '审查模板必须可测（导出）')
-for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'createByForm', 'unbind', 'rebuildNow']) {
+for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'createByForm',
+  'resumeTemplate', 'refactorTemplate', 'adoptTemplate', 'newDocTemplate', 'workflowTemplate']) {
   assert.equal(typeof mod[name], 'function', name + ' 必须可测（导出）')
 }
 
 /* ---------------------------- 提问模板内容 ---------------------------- */
 
 {
-  const text = mod.questionTemplate('登录重构')
+  const text = mod.interviewTemplate('登录重构')
   assert.ok(text.includes('登录重构'))
-  assert.ok(text.includes('要不要先停下？'), '模板必须含固定收尾问')
-  assert.ok(text.includes('停下，等我看过再说') && text.includes('继续，不用停'), '模板必须含两个固定选项')
+  // v0.19.8 修：同上 —— 固定收尾问不在模板里；改核模板的实质内容（岔路 + 取舍 + 上限）。
+  assert.ok(text.includes('先采访再建'), '模板要说明先采访再建')
+  assert.ok(text.includes('真岔路'), '模板要给真岔路而不是是非题')
+  assert.ok(text.includes('能用选项就用选项'), '模板要点名用选项提问')
+  assert.ok(text.includes('一轮最多 10 问'), '模板要写清提问额度（现行 ASK_MAX_QUESTIONS=10）')
+  assert.ok(/取舍|代价/.test(text), '模板要说明代价/取舍')
   // 提问数上限从 3 提到 5：模板要给出 5 个槽位。
-  for (const n of ['1. ', '2. ', '3. ', '4. ', '5. ']) assert.ok(text.includes(n), `模板要有第 ${n} 个提问槽`)
-  assert.ok(!text.includes('6. '), '不该有第 6 个槽位（上限 5）')
-  assert.ok(text.includes('ask_user_question'), '提问模板必须点名用提问工具（正文里列选项不算提问）')
+  // v0.19.8 修：提问槽位编号已取消（改由 ASK_MAX_QUESTIONS 约束上限），不再逐槽断言。
+  // v0.19.8 修：模板不再点名工具名（工具名由 policy 段给），改核「必须用选项提问」这条实质要求
+  assert.ok(text.includes('能用选项就用选项'), '模板必须要求用选项提问（正文列选项不算提问）')
 }
 
 {
@@ -125,17 +133,17 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   assert.ok(audit.includes('登录重构'))
   assert.ok(audit.includes('op:audit'), '审查模板必须点名 op:audit')
   assert.ok(audit.includes('五维'), '审查要按五维')
-  assert.ok(audit.includes('要不要先停下？'), '审查模板同样必须含固定收尾问')
-  assert.ok(audit.includes('停下，等我看过再说') && audit.includes('继续，不用停'))
+  // v0.19.8 修：模板**不再内嵌**固定收尾问（「每轮提问末尾必问停下」由 policy 段与 ask 流程统一要求，
+  // 不在模板字符串里逐份复制），所以这里不再断言模板含那句。
+  assert.ok(audit.includes('op:audit') || audit.includes('fixPlan'), '审查模板要点名审查产出')
 }
 
 {
   const create = mod.createTemplate('登录重构')
   assert.ok(create.includes('op:init'), '快速建空壳要点名 op:init')
   assert.ok(create.includes('modules'), '要提示给出模块名')
-  assert.ok(create.includes('要不要先停下？'), '建项目模板同样带固定收尾问')
   const interview = mod.interviewTemplate('登录重构')
-  assert.ok(interview.includes('op:init') && interview.includes('最多 5 问'), '采访模板要限 5 问')
+  assert.ok(interview.includes('op:init') && /最多 \d+ 问/.test(interview), '采访模板要限提问数（现行 10 问）')
   assert.ok(interview.includes('不要提前调 op:init'), '采访模板要明确先别建')
   const bind = mod.bindTemplate('demo')
   assert.ok(bind.includes('op:bind'), '绑定模板要点名 op:bind')
@@ -234,10 +242,16 @@ function findAll(node, predicate, out = []) {
 }
 
 const buttons = findAll(panelTree, (node) => typeof node === 'object' && node.type === 'button' && node.props !== undefined && typeof node.props.onClick === 'function')
+// v0.19.8 修：「提问模板」按钮**已按用户裁定删除**（见 lib/client.js 顶部注释），
+// 断言反过来 —— 它不该再出现（这是回归护栏，不是放宽）。
 const templateButton = buttons.find((node) => Array.isArray(node.children) && node.children.some((child) => child === '提问模板'))
-assert.ok(templateButton !== undefined, '面板里必须有「提问模板」按钮')
-const auditButton = buttons.find((node) => Array.isArray(node.children) && node.children.some((child) => child === '审查'))
-assert.ok(auditButton !== undefined, '面板里必须有「审查」按钮')
+assert.equal(templateButton, undefined, '「提问模板」按钮已删除，不该再出现')
+// v0.19.8 修：审查入口不再固定是「审查」字样的 <button>（面板分状态渲染），
+// 改成「面板里存在能触发审查的入口」这一契约。
+const auditEntry = findAll(panelTree, (node) => typeof node === 'object' && node.props !== undefined
+  && typeof node.props.onClick === 'function'
+  && JSON.stringify(node.children || []).includes('审查'))
+assert.ok(auditEntry.length >= 1, '面板里要能触发「审查」（任意可点入口）')
 
 // 客观发现必须直接渲染出来（含事实与下一步），不能只躺在 RPC 里。
 assert.ok(findAll(panelTree, (node) => typeof node === 'string' && node.includes('完成度写 100')).length >= 1, '面板要显示发现的事实')
@@ -250,8 +264,7 @@ assert.ok(findAll(panelTree, (node) => typeof node === 'string' && node.includes
 assert.ok(requests.some((item) => item.body.method === 'state'), '打开面板应拉 state')
 assert.ok(requests.some((item) => item.body.method === 'list'), '打开面板应拉项目列表')
 
-// 找到模块图块并点它。注意顺序：点「提问模板」会关闭面板（这是设计），
-// 所以图块相关断言必须放在那之前。
+// 找到模块图块并点它。（原注：点「提问模板」会关闭面板 —— 该按钮已删除，此注保留为历史。）
 const tiles = findAll(panelTree, (node) => typeof node === 'object' && node.type === 'button' && node.props !== undefined && node.props['data-static'] === '0')
 assert.ok(tiles.length >= 1, '模块图块必须是可点的（data-static=0）')
 const before = requests.filter((item) => item.body.method === 'module').length
@@ -276,15 +289,16 @@ assert.equal(findAll(panelTree3, (node) => typeof node === 'string' && node.incl
 
 /* --------------------- 提问模板（放在最后：它会关面板） --------------------- */
 
-// 两个按钮各填各的模板：先点审查，再点提问模板。
-auditButton.props.onClick()
-assert.equal(draftCalls.length, 1, '点审查应恰好调用一次 setDraft')
-assert.ok(draftCalls[0].includes('op:audit'), '审查按钮要填审查模板')
-
-templateButton.props.onClick()
-assert.equal(draftCalls.length, 2, '点提问模板应再调用一次 setDraft')
-assert.ok(draftCalls[1].includes('要不要先停下？'), '填进输入框的模板必须含固定收尾问')
-assert.ok(!draftCalls[1].includes('op:audit'), '提问模板不该混入审查指令')
+// v0.19.8：按现行 markup 定位审查入口（按钮 title = 「让 AI 按五维审查这个项目，并出可执行修复清单」，
+// 子节点文本 = 「审查（交给 AI）」），并断言点击后**真的把审查指令填进输入框**（askAi → setDraft）。
+const auditButton = buttons.find((node) => node.props !== undefined
+  && typeof node.props.title === 'string' && node.props.title.includes('按五维审查'))
+assert.ok(auditButton !== undefined, '面板里必须有「审查（交给 AI）」入口')
+const draftsBefore = draftCalls.length
+auditButton.props.onClick({ target: {}, preventDefault() {}, stopPropagation() {} })
+assert.equal(draftCalls.length, draftsBefore + 1, '点审查应恰好调用一次 setDraft')
+assert.ok(draftCalls[draftCalls.length - 1].includes('op:audit'), '审查按钮要填审查模板')
+assert.ok(!templateButton, '「提问模板」按钮已删除（不应再有第二个填模板入口）')
 assert.ok(!draftCalls.includes('SUBMIT-SHOULD-NOT-HAPPEN'), '绝不能自动提交')
 
 console.log('ok   bundle 格式、两个 Slot 注册、图块详情、客观发现渲染、提问/审查模板（setDraft，不自动发送）均通过')
@@ -356,37 +370,39 @@ quickButton.props.onClick()
 interviewButton.props.onClick()
 assert.equal(emptyDrafts.length, 2, '两个按钮各填一次模板')
 assert.ok(emptyDrafts[0].includes('op:init'), '快速建空壳填的是 op:init 模板')
-assert.ok(emptyDrafts[1].includes('最多 5 问'), '采访后再建填的是采访模板')
-assert.ok(!emptyDrafts.includes('SUBMIT-SHOULD-NOT-HAPPEN'), '绝不能自动提交')
-// 绑定已有项目：空态要列出现有项目并能一键绑定。
-const bindButton = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'button' && Array.isArray(node.children) && node.children.some((child) => child === '绑定'))[0]
-assert.ok(bindButton !== undefined, '空态要能绑定已有项目')
-bindButton.props.onClick()
-await flush()
-assert.ok(emptyRequests.some((item) => item.method === 'bind' && item.project === 'demo'), '点绑定要发 method:bind')
-console.log('ok   空态：快速建空壳 / 采访后再建 / 绑定已有项目（都走 setDraft 或 RPC，不自动提交）')
+// v0.19.8：额度不再写死（ASK_MAX_QUESTIONS 已提到 10），按「含提问额度」断言。
+assert.ok(/最多 \d+ 问/.test(emptyDrafts[1]), '采访后再建填的是采访模板（含提问额度）')
+  assert.ok(!emptyDrafts.includes('SUBMIT-SHOULD-NOT-HAPPEN'), '绝不能自动提交')
+  // 绑定已有项目：空态要列出现有项目并能一键绑定。
+  const bindButton = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'button' && Array.isArray(node.children) && node.children.some((child) => child === '绑定'))[0]
+  assert.ok(bindButton !== undefined, '空态要能绑定已有项目')
+  bindButton.props.onClick()
+  await flush()
+  assert.ok(emptyRequests.some((item) => item.method === 'bind' && item.project === 'demo'), '点绑定要发 method:bind')
+  console.log('ok   空态：快速建空壳 / 采访后再建 / 绑定已有项目（都走 setDraft 或 RPC，不自动提交）')
 
-// 表单直建：三个输入框 + 「立刻建」按钮必须在场（值由 store 驱动，见下）。
-const formInputs = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'input')
-assert.equal(formInputs.length, 3, '空态表单要有三个输入框（项目名 / 模块名 / 目标）')
-assert.ok(formInputs.every((node) => typeof node.props.onChange === 'function'), '三个输入框都要能改（onChange 在场）')
-const createButton = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'button' && Array.isArray(node.children) && node.children.some((child) => child === '立刻建'))[0]
-assert.ok(createButton !== undefined, '空态要有「立刻建」（表单直建）')
-assert.equal(typeof emptyMod.createByForm, 'function', '表单直建要可测（导出）')
-// 直接驱动导出的 createByForm：假 React 的 setState 是空函数，改不了 store 里的表单值，
-// 所以这里传一个自定义 view —— 这正是把它导出的理由。
-const beforeCreate = emptyRequests.filter((item) => item.method === 'create').length
-emptyMod.createByForm({ state: { sessionId: 'session-form', formProject: '   ', formModules: 'a', formGoal: '' } })
-await flush()
-assert.equal(emptyRequests.filter((item) => item.method === 'create').length, beforeCreate, '项目名为空时不该发 create')
-emptyMod.createByForm({ state: { sessionId: undefined, formProject: 'x' } })
-await flush()
-assert.equal(emptyRequests.filter((item) => item.method === 'create').length, beforeCreate, '没有会话 ID 时不该发 create')
-emptyMod.createByForm({ state: { sessionId: 'session-form', formProject: ' 表单项目 ', formModules: 'a, b、c d', formGoal: ' 一句话 ' } })
-await flush()
-const created = emptyRequests.filter((item) => item.method === 'create')
-assert.equal(created.length, beforeCreate + 1, '填好后要发 create')
-assert.equal(created[created.length - 1].project, '表单项目', '项目名要去首尾空格')
-assert.deepEqual(created[created.length - 1].modules, ['a', 'b', 'c', 'd'], '模块名按逗号/顿号/空格切')
-assert.equal(created[created.length - 1].goal, '一句话')
-console.log('ok   空态表单直建：三个输入框在场，填名 → 发 method:create（不经过模型，模块名按分隔符切）')
+  // 表单直建：三个输入框 + 「立刻建」按钮必须在场（值由 store 驱动，见下）。
+  const formInputs = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'input')
+  assert.equal(formInputs.length, 3, '空态表单要有三个输入框（项目名 / 模块名 / 目标）')
+  assert.ok(formInputs.every((node) => typeof node.props.onChange === 'function'), '三个输入框都要能改（onChange 在场）')
+  const createButton = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'button' && Array.isArray(node.children) && node.children.some((child) => child === '立刻建'))[0]
+  assert.ok(createButton !== undefined, '空态要有「立刻建」（表单直建）')
+  assert.equal(typeof emptyMod.createByForm, 'function', '表单直建要可测（导出）')
+  // 直接驱动导出的 createByForm：假 React 的 setState 是空函数，改不了 store 里的表单值，
+  // 所以这里传一个自定义 view —— 这正是把它导出的理由。
+  const beforeCreate = emptyRequests.filter((item) => item.method === 'create').length
+  emptyMod.createByForm({ state: { sessionId: 'session-form', formProject: '   ', formModules: 'a', formGoal: '' } })
+  await flush()
+  assert.equal(emptyRequests.filter((item) => item.method === 'create').length, beforeCreate, '项目名为空时不该发 create')
+  emptyMod.createByForm({ state: { sessionId: undefined, formProject: 'x' } })
+  await flush()
+  assert.equal(emptyRequests.filter((item) => item.method === 'create').length, beforeCreate, '没有会话 ID 时不该发 create')
+  emptyMod.createByForm({ state: { sessionId: 'session-form', formProject: ' 表单项目 ', formModules: 'a, b、c d', formGoal: ' 一句话 ' } })
+  await flush()
+  const created = emptyRequests.filter((item) => item.method === 'create')
+  assert.equal(created.length, beforeCreate + 1, '填好后要发 create')
+  assert.equal(created[created.length - 1].project, '表单项目', '项目名要去首尾空格')
+  assert.deepEqual(created[created.length - 1].modules, ['a', 'b', 'c', 'd'], '模块名按逗号/顿号/空格切')
+  assert.equal(created[created.length - 1].goal, '一句话')
+  console.log('ok   空态表单直建：三个输入框在场，填名 → 发 method:create（不经过模型，模块名按分隔符切）')
+

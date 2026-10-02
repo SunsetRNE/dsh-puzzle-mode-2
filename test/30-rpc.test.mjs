@@ -265,14 +265,22 @@ try {
     const out = await tool.execute({ op: 'audit' }, exec)
     assert.equal(out.ok, true)
     assert.equal(out.project, 'demo')
-    assert.equal(typeof out.health, 'number')
+    // v0.19.8 修：audit 返回里没有 `health`（项目健康性由宿主按模块均值汇总），
+    // 现行契约是 declaredHealth（手写）/ trueHealth（真实位）两个数。
+    assert.equal(typeof out.trueHealth, 'number', 'trueHealth 必须是数')
+    assert.equal(typeof out.declaredHealth, 'number', 'declaredHealth 必须是数')
     assert.equal(out.dimensionMeta.length, 5)
     assert.equal(out.ranking.length, 5, 'ranking 要覆盖五维')
     assert.ok(Array.isArray(out.findings), 'findings 必须是数组')
     assert.ok(out.findings.length > 0, '新建的空项目必须有发现')
-    assert.equal(typeof out.sections, 'object', '要带主文档六节的计数')
-    assert.equal(typeof out.prompt, 'string', '要带写点评的指令')
-    assert.ok(out.prompt.includes('最弱的一维'))
+    // v0.19.8 修：主文档是 v6 五节（不是六节）；审查指令字段叫 promptIn（不是 prompt）
+    assert.equal(typeof out.sections, 'object', '要带主文档五节的计数')
+    assert.equal(typeof out.promptIn, 'string', '要带写点评的指令')
+    // v0.19.8 修：指令文案已改（现行是「四段结构 + 带数字」那套），不再有「最弱的一维」这个说法
+    // v0.19.8 修：promptIn 是**指针**（「提示段的『### 审查（op:audit）』一节（要原文给 verbose:true）」），
+    // 审查指令的全文在 policy 段里，不再随回执回吐 —— 断言改成核这个契约。
+    assert.ok(String(out.promptIn).includes('verbose:true') || String(out.promptIn).includes('提示段'),
+      'promptIn 应是指向 policy 段的指针：' + String(out.promptIn).slice(0, 80))
     // 插件只给事实，不生成评价正文——正文由模型照着 prompt 写。
     assert.ok(!Object.hasOwn(out, 'review'), '不该有插件生成的点评字段')
     assert.ok(!Object.hasOwn(out, 'verdict'), '不该有插件生成的结论字段')
