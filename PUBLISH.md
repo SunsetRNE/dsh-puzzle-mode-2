@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.19.2（面板教程配图：10 张 PNG 由 `npm run render-tutorial` **照着 `UI.md` 渲染**，图与正文同源、可重跑；页面宽按 GitHub 正文宽 830px 渲染、渲染前剥掉正文里的图片引用（防自引用破图）、表格 `table-layout:fixed`；量化 256 色 5.6MB→2.2MB。含 v0.19.1 的首轮判定修复与 v0.19.0 的首轮自动判定） |
+| 版本 | v0.19.3（修一条**通用缺陷**：返回体积改为 ∝ 本次改变了什么，而不是 ∝ 项目规模。写操作只回回执——7026→1192 字符（省 83%）；审查证据抽成 `evidenceTable` 去重表、各处只留 `evidence:[下标]`（同一句曾重复 39 次、114 次出现仅 12 条唯一）→ 实测响应 43KB→28KB（省 35%）；`inflation[].because` 纯副本删除；`AUDIT_PROMPT` 默认不回吐（提示段已有一份，`verbose:true` 取回）。判据已写进提示段防复发。含 v0.19.2 教程图） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
