@@ -1,0 +1,59 @@
+name: verify
+
+# 兼容性复刻仓的自检：本仓 = 上游 + 兼容面，所以这里跑的是**上游那套测试 + 兼容层自己的握手校验**。
+# 触发：push 到 main、任何 PR、手动。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compat:
+    name: 测试 + 跨插件握手
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 装依赖
+        run: npm ci --no-audit --no-fund
+
+      - name: 上游那套测试（10/20/30/40）+ 握手校验（npm test 链尾已含 verify:cross）
+        run: npm test
+
+      - name: 契约文件在场且可解析（compat.json）
+        run: node -e "const j=JSON.parse(require('fs').readFileSync('compat.json','utf8')); if(j.contract!=='ig5-puzzle-coexist/1') { console.error('契约名不符：'+j.contract); process.exit(1) } console.log('契约 OK：'+j.contract+' · 末位锚点 '+j.ig5TailOrder+' · 拼图默认段序 '+j.puzzleDefaultOrder)"
+
+      # 本机（开发机）上 verify:cross 会真的读 dsh-infinite-gen-5 做双向互校；
+      # CI 上没有那个仓库 —— 走的是「对方不在场 → 互校跳过」分支。
+      # 这一分支必须也能跑通，否则 CI 会红在本机永远走不到的那条路上（v0.59.2 的真实事故）。
+      - name: 说明（对方不在场时的期望行为）
+        run: echo "CI 无 dsh-infinite-gen-5 → 握手校验走「互校跳过」分支并标注，不判失败"
+
+  upstream-drift:
+    name: 上游漂移提示（不阻断）
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 本仓是否仍为「上游 + 兼容面」
+        run: |
+          git remote add upstream https://github.com/liancha22/dsh-puzzle-mode.git
+          git fetch --depth=50 upstream main
+          if git merge-base --is-ancestor upstream/main HEAD; then
+            echo "✓ upstream/main 是本仓 HEAD 的祖先 —— 线性结构成立（本仓 = 上游 + 兼容面）"
+          else
+            echo "::warning::上游已前进，本仓需要 rebase（npm run sync:upstream 看差异，合完跑 npm test + verify:cross）"
+            git log --oneline HEAD..upstream/main | head -10
+          fi
