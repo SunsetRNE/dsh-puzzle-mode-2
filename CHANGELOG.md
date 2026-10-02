@@ -1,3 +1,12 @@
+## v0.19.9（兼容层）
+
+**双向互校**：新增 `compat.json` 把双方共用的段序契约写成机器可读的一份 ——
+`{ ig5TailOrder: 10150, puzzleDefaultOrder: 10100, contract: "ig5-puzzle-coexist/1" }`；
+`tools/verify-cross-plugin.mjs` 增加三个方向的对账：**A** 无限五代记的「拼图默认段序」== 本仓默认 ·
+**B** 无限五代记的「末位锚点」== 本仓契约里的值 · **C** 段序关系成立（10100 < 10150）。
+对方一侧同步加了 `COMPAT_CONTRACT` + `contractIssues()`：它读本仓这份 `compat.json` 做同样的双向核对。
+任一侧改数字而另一侧没跟上，**两边都会红**。判据：`npm run verify:cross` **18 通过 / 0 失败**。
+
 ## 兼容仓定位（v0.19.8+ · 与上游分工）
 
 **本仓 = 上游 + 兼容层。** 上游 `liancha22/dsh-puzzle-mode` 走它自己的功能路线（其测试漂移修复已由
