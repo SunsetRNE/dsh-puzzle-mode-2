@@ -15,7 +15,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.18.0** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.19.0** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -26,7 +26,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.18.0
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.0
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -37,7 +37,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.18.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.18.0/dsh-puzzle-mode-0.18.0.tgz)
+[dsh-puzzle-mode-0.19.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.0/dsh-puzzle-mode-0.19.0.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -54,6 +54,55 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.19.0 · 新会话直接发需求，自动走「采访后再建」
+
+**以前**：「采访后再建」只是面板上的一颗按钮——把提示词填进输入框，**要你自己点、自己发**。
+新开会话直接把需求打出来时，这条路根本不会触发。
+
+**现在**：新会话里把需求打出来就行。宿主半注册了 `agent/pre-step`，
+在每步进入模型之前**确定性判定**，五个条件同时满足才触发：
+
+| 条件 | 为什么 |
+| --- | --- |
+| **本会话第一轮**（`turn === 1 && step === 1`） | 「新会话」的确定性判据。**只看 `step === 1` 是错的**：`AgentLoop` 每个 turn 都会把 `step` 归零，恢复的历史会话下一条消息就会命中 |
+| **不是子代理**（`origin !== 'subagent'`） | 子代理的首条 prompt 同样是 `role:'user'` + `source.kind:'user'`，但它**没有用户可问**——注入「去采访用户」纯属污染 |
+| 用户发的**非空文本** | 插件自己注入的上下文不算（按 `source.kind` 认来源） |
+| 本会话**未绑项目** | 已绑的会话是「继续做项目」，不该被打断 |
+| **不是寒暄**、用户也**没说「别采访」** | 「你好」不值得起流程；说跳过就跳过 |
+
+判定通过后在**用户需求之后**插一条上下文（`source.kind: 'puzzle-first-run'`）。
+它是**追加**，从不 reject、从不 deny——出错就按原样放行，**绝不因为自身问题挡住你的需求**。
+
+**先查再问**：工作区里已经有拼图项目时，第一步不是采访，而是先问
+「**绑定已有项目还是新建**」。这一步有原因：v0.16.4 踩过——不先查就 `op:init`，
+会把已存在的项目又建一遍。
+
+**能跳**：说「别采访 / 直接建 / 不用问」就跳过采访。跳过识别**只在句首匹配**
+（配短句 ≤20 字的句中出现也算）——实测反例：「这个功能别采访用户，要保留提问流程…」
+是一条**需求**，出现在句中且是长句，不会被误判。
+
+**提示段是第二道**：同一套规则也写进了注入的提示段。hook 管确定性，提示段管兜底
+（会话恢复、宿主版本差异等 hook 没走到的路径）。
+
+**可观测**：`op:read` 每次返回都带 `firstRun: { fired, note }`——
+本会话注入了没，一眼看得见，不是「悄悄注入了一条上下文」。
+
+**发版前修掉两个缺陷**（初版实现踩的，判据与修法见 Release 正文）：
+
+- **`step === 1` 不是「新会话」**：`AgentLoop` **每个 turn 都把 `step` 归零**，
+  于是冷恢复的历史会话下一条消息就命中「首步」，被当成第一条需求开始采访。
+  判据改成 `turn === 1 && step === 1`（`turn` 来自 `turnBoundary` 会话投影，
+  由持久化日志重建，跨进程成立）。
+- **子代理被误注入**：本 hook 注册在**根级 ctx**，对每个 agent 都生效；
+  子代理（`subagent` / teammate）的首条 prompt 同样是 `role:'user'` +
+  `source.kind:'user'`，但**它没有用户可问**。新增 `isDelegatedSession(agent)`
+  按会话头部（`origin` / `parentSession` / `delegationDepth`）识别并跳过。
+
+> **不引入新的运行时依赖**：注入的消息按 `dsh-llm` 的 `createMessage` 形状自己造
+> （`{id, role, content, source}`，冻结），实测与官方 `createUserMessage` 产物
+> **字段与内容完全一致**。原因是 `@deepseek-ai/dsh-llm` **不在本插件的 peerDependencies 里**——
+> 静态 import 会让「宿主没装它」变成加载期硬失败，把整个插件拖垮。
 
 ### v0.18.0 · 审查的判据从「文件多大」换成「函数形状」
 
@@ -144,41 +193,9 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 > 为什么不逐条转成一个个块：v5 的每一条约束**不是一个流程**（没有顺序、没有步骤），
 > 逐条转块会造出 N 条「只有一步的流水线」——形状对了，语义是假的。合成一个块至少诚实。
 
-### v0.16.5 · 修「样式自检」自己报假警（两处代码 bug）
-
-有人的面板**看起来是好的**，却在顶部显示「⚠ 面板样式没有生效」，
-并给出 `applied=false inset=false color-mix=false backdrop=false min()=false`。
-UA 是 **Chrome 152** —— 一个四项全不支持的浏览器并不存在。**是自检自己坏了**：
-
-**bug ① · 探针自己写了 `position:absolute`。**
-探针是 `.dshpz-backdrop` 的一个 div，用 `getComputedStyle().position === 'fixed'` 判定
-样式表有没有生效。但它同时写了行内 `position:absolute`，而**行内样式的优先级高于样式表** ——
-于是 `position` 恒为 `absolute`，`applied` 在**任何**浏览器上都是 `false`。
-
-修法：探针只负责挪出视口（`left:-9999px`），`position` 交给样式表判定。
-
-**bug ② · `CSS.supports` 里的 `CSS` 被本文件的样式表字符串遮蔽了。**
-本文件有 `var CSS = [...]`（样式表本身）。原先写 `CSS.supports(…)`，
-取到的是**字符串的** `undefined` 属性 → `CSS.supports !== undefined` 为假 → `&&` 短路 →
-`inset` / `color-mix` / `backdrop` / `min()` **四项一律返回 `false`**。
-这正是那行报告里四项全 `false` 的来源。
-
-修法：改走 `window.CSS.supports(…)`，不再用裸 `CSS`。
-
-**顺带把诊断行改成可信的**：原先 `applied=false` 是**写死在字面量里**的，
-于是「自检误报」与「真的没生效」看起来一模一样。现在 `applied` 取真实值，
-并新增一项 `rules=`（`<style>` 的 `cssRules` 条数，CSP 拦掉时为 `null`）：
-
-```
-puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… backdrop=… min()=… ua=…
-```
-
-`applied=false` 且 `rules=null` 才是「样式表没进文档」（CSP / 被别的插件清掉）；
-`applied=false` 而 `rules>0` 说明表进了文档、只是没盖住探针。
-
 ### 更早的版本
 
-v0.16.4 及更早（一直到 v0.9.0）的说明已挪到 **[CHANGELOG.md](CHANGELOG.md)**；
+v0.16.5 及更早（一直到 v0.9.0）的说明已挪到 **[CHANGELOG.md](CHANGELOG.md)**；
 每个版本的完整正文与验收判据见 [Releases](https://github.com/liancha22/dsh-puzzle-mode/releases)。
 
 ---

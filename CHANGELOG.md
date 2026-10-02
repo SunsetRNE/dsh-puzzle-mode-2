@@ -15,6 +15,38 @@
 文档格式升 **v6**，含 v5→v6 迁移（旧扁平条目合成一个 `### 迁移自 v5` 块，其余正文一字不动）。
 完整说明见 [README](README.md) 的「最新版本」一节。
 
+### v0.16.5 · 修「样式自检」自己报假警（两处代码 bug）
+
+有人的面板**看起来是好的**，却在顶部显示「⚠ 面板样式没有生效」，
+并给出 `applied=false inset=false color-mix=false backdrop=false min()=false`。
+UA 是 **Chrome 152** —— 一个四项全不支持的浏览器并不存在。**是自检自己坏了**：
+
+**bug ① · 探针自己写了 `position:absolute`。**
+探针是 `.dshpz-backdrop` 的一个 div，用 `getComputedStyle().position === 'fixed'` 判定
+样式表有没有生效。但它同时写了行内 `position:absolute`，而**行内样式的优先级高于样式表** ——
+于是 `position` 恒为 `absolute`，`applied` 在**任何**浏览器上都是 `false`。
+
+修法：探针只负责挪出视口（`left:-9999px`），`position` 交给样式表判定。
+
+**bug ② · `CSS.supports` 里的 `CSS` 被本文件的样式表字符串遮蔽了。**
+本文件有 `var CSS = [...]`（样式表本身）。原先写 `CSS.supports(…)`，
+取到的是**字符串的** `undefined` 属性 → `CSS.supports !== undefined` 为假 → `&&` 短路 →
+`inset` / `color-mix` / `backdrop` / `min()` **四项一律返回 `false`**。
+这正是那行报告里四项全 `false` 的来源。
+
+修法：改走 `window.CSS.supports(…)`，不再用裸 `CSS`。
+
+**顺带把诊断行改成可信的**：原先 `applied=false` 是**写死在字面量里**的，
+于是「自检误报」与「真的没生效」看起来一模一样。现在 `applied` 取真实值，
+并新增一项 `rules=`（`<style>` 的 `cssRules` 条数，CSP 拦掉时为 `null`）：
+
+```
+puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… backdrop=… min()=… ua=…
+```
+
+`applied=false` 且 `rules=null` 才是「样式表没进文档」（CSP / 被别的插件清掉）；
+`applied=false` 而 `rules>0` 说明表进了文档、只是没盖住探针。
+
 ### v0.16.4 · 空态新增「照现有项目搭文档」（老会话补文档）
 
 **场景**：新装插件的人，手上是一堆**老会话**——每个会话都在做真实项目，

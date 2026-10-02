@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.18.0（审查的判据从「文件多大」换成「函数形状」：`source_big_file` 恒为 `info` 不再扣分，巨函数检测要求函数特征并扫**每个文件**、带 `file`；「待建」引用不再算已测量；源码引用保留相对路径、认反引号；最弱一维改按真实值；`op:audit` 收 `additions` 回传并给 `key` / `previousKeys` 复测；`lib/` 清掉 36 处重复 JSDoc。含 v0.17.0 的工作流流水线与 v0.16.5 的样式自检修复） |
+| 版本 | v0.19.0（新会话**直接发需求**自动走「采访后再建」：宿主半注册 `agent/pre-step`，在每步进模型前确定性判定——首步 + 用户发的非空文本 + 本会话未绑项目 + 不是寒暄且没说「别采访」，命中后在需求之后追加一条上下文（只追加，从不 reject/deny，出错原样放行）；工作区已有项目时先问「绑定已有还是新建」；`op:read` 带 `firstRun:{fired,note}` 可观测。含 v0.18.0 的函数形状审查判据） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
