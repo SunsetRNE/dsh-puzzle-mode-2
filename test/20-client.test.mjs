@@ -15,9 +15,11 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { ASK_MAX_OPTIONS, ASK_MAX_QUESTIONS, HEALTH_DIMENSIONS } from '../lib/puzzle.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const DIMENSION_NAMES = ['任务复杂度', '可拓展性', '维护系数', '代码质量', '可复用性']
+// 维度名**引常量**而不是写死（v0.19.8）：改维度只改 lib/constants.js，断言自动跟上。
+const DIMENSION_NAMES = HEALTH_DIMENSIONS.map((d) => d.name)
 const source = readFileSync(join(here, '..', 'lib', 'client.js'), 'utf8')
 
 let loaded = null
@@ -120,7 +122,8 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   assert.ok(text.includes('先采访再建'), '模板要说明先采访再建')
   assert.ok(text.includes('真岔路'), '模板要给真岔路而不是是非题')
   assert.ok(text.includes('能用选项就用选项'), '模板要点名用选项提问')
-  assert.ok(text.includes('一轮最多 10 问'), '模板要写清提问额度（现行 ASK_MAX_QUESTIONS=10）')
+  assert.ok(text.includes('一轮最多 ' + ASK_MAX_QUESTIONS + ' 问'), '模板要写清提问额度（引 ASK_MAX_QUESTIONS，改上限不用改断言）')
+  assert.ok(text.includes('每题最多 ' + ASK_MAX_OPTIONS + ' 个选项'), '模板要写清选项额度（引 ASK_MAX_OPTIONS）')
   assert.ok(/取舍|代价/.test(text), '模板要说明代价/取舍')
   // 提问数上限从 3 提到 5：模板要给出 5 个槽位。
   // v0.19.8 修：提问槽位编号已取消（改由 ASK_MAX_QUESTIONS 约束上限），不再逐槽断言。
@@ -370,9 +373,9 @@ quickButton.props.onClick()
 interviewButton.props.onClick()
 assert.equal(emptyDrafts.length, 2, '两个按钮各填一次模板')
 assert.ok(emptyDrafts[0].includes('op:init'), '快速建空壳填的是 op:init 模板')
-// v0.19.8：额度不再写死（ASK_MAX_QUESTIONS 已提到 10），按「含提问额度」断言。
-assert.ok(/最多 \d+ 问/.test(emptyDrafts[1]), '采访后再建填的是采访模板（含提问额度）')
-  assert.ok(!emptyDrafts.includes('SUBMIT-SHOULD-NOT-HAPPEN'), '绝不能自动提交')
+// v0.19.8：额度不再写死，改引 ASK_MAX_QUESTIONS —— 以后调上限不必回来改断言。
+assert.ok(emptyDrafts[1].includes('最多 ' + ASK_MAX_QUESTIONS + ' 问'), '采访后再建填的是采访模板（额度引常量）')
+assert.ok(!emptyDrafts.includes('SUBMIT-SHOULD-NOT-HAPPEN'), '绝不能自动提交')
   // 绑定已有项目：空态要列出现有项目并能一键绑定。
   const bindButton = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'button' && Array.isArray(node.children) && node.children.some((child) => child === '绑定'))[0]
   assert.ok(bindButton !== undefined, '空态要能绑定已有项目')

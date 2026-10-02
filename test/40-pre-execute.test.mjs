@@ -17,7 +17,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { createProject, setMode } from '../lib/puzzle.js'
+import { MODE_PUZZLE_AFTER, MODE_PUZZLE_ONLY, MODE_PUZZLE_WRITE, PAUSE_OPTIONS, PAUSE_QUESTION, PUZZLE_ONLY_ALLOWED_TOOLS, createProject, setMode } from '../lib/puzzle.js'
 
 let host
 try {
@@ -66,23 +66,25 @@ function call(name, id = 'session-x') {
 const allow = async () => ({ kind: 'allow' })
 
 try {
-  createProject(root, 'demo', '目标', ['auth-flow'], '只拼不写', 'session-x')
+  createProject(root, 'demo', '目标', ['auth-flow'], MODE_PUZZLE_ONLY, 'session-x')
   const listener = captureListener()
 
   // 1) 只拼不写：越权工具必须被 deny，且理由里带上固定收尾问与「改用 puzzle_mode」。
   const denied = await listener(call('bash'), allow)
   assert.equal(denied.kind, 'deny', 'bash 必须被 deny')
-  assert.ok(denied.reason.includes('要不要先停下？'), '拒绝理由里必须复述固定收尾问')
+  assert.ok(denied.reason.includes(PAUSE_QUESTION), '拒绝理由里必须复述固定收尾问（引 PAUSE_QUESTION）')
+  assert.ok(denied.reason.includes(PAUSE_OPTIONS[0]) && denied.reason.includes(PAUSE_OPTIONS[1]), '拒绝理由要给出收尾问的两个选项')
   assert.ok(denied.reason.includes('puzzle_mode'), '拒绝理由里必须指明改走 puzzle_mode')
   assert.ok(denied.reason.includes('write / edit'), '拒绝理由里必须点明不要用 write/edit')
   ok('只拼不写：bash → deny，理由含固定收尾问与替代路径')
 
   // 2) 白名单工具必须放行（原样返回 next() 的结果）。
-  for (const name of ['puzzle_mode', 'read', 'grep', 'glob', 'ask_user_question', 'todo_write']) {
+  // 白名单**引常量**（v0.19.8）：往名单里加工具不必回来改断言。
+  for (const name of PUZZLE_ONLY_ALLOWED_TOOLS) {
     const decision = await listener(call(name), allow)
     assert.equal(decision.kind, 'allow', `${name} 应放行`)
   }
-  ok('只拼不写：白名单六个工具全部放行')
+  ok(`只拼不写：白名单 ${PUZZLE_ONLY_ALLOWED_TOOLS.length} 个工具全部放行`)
 
   // 3) write / edit 不在白名单——它们能绕过路径守卫，必须拦。
   for (const name of ['write', 'edit']) {
@@ -91,8 +93,15 @@ try {
   }
   ok('只拼不写：write / edit 被拦（不能绕过路径守卫）')
 
-  // 4) 边拼边写：全部放行。
-  setMode(root, 'demo', '边拼边写')
+  // 4) 可执行模式（写后再拼 / 边拼边写）：全部放行。
+  setMode(root, 'demo', MODE_PUZZLE_AFTER)
+  for (const name of ['bash', 'write', 'edit', 'puzzle_mode']) {
+    const decision = await listener(call(name), allow)
+    assert.equal(decision.kind, 'allow', `写后再拼下 ${name} 应放行`)
+  }
+  ok('写后再拼：bash / write / edit 全部放行')
+
+  setMode(root, 'demo', MODE_PUZZLE_WRITE)
   for (const name of ['bash', 'write', 'edit', 'puzzle_mode']) {
     const decision = await listener(call(name), allow)
     assert.equal(decision.kind, 'allow', `边拼边写下 ${name} 应放行`)
@@ -100,7 +109,7 @@ try {
   ok('边拼边写：bash / write / edit 全部放行')
 
   // 5) 已经有人 deny 过：不要插话覆盖。
-  setMode(root, 'demo', '只拼不写')
+  setMode(root, 'demo', MODE_PUZZLE_ONLY)
   const prior = { kind: 'deny', reason: '别人拒的' }
   const kept = await listener(call('bash'), async () => prior)
   assert.equal(kept, prior, '已 deny 的决策必须原样透传')

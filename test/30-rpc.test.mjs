@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { PUZZLE_VERSION, boundProject, createProject, docVersion, readState } from '../lib/puzzle.js'
+import { HEALTH_DIMENSIONS, PUZZLE_VERSION, SECTION_ORDER, boundProject, createProject, docVersion, readState } from '../lib/puzzle.js'
 
 let host
 try {
@@ -269,12 +269,13 @@ try {
     // 现行契约是 declaredHealth（手写）/ trueHealth（真实位）两个数。
     assert.equal(typeof out.trueHealth, 'number', 'trueHealth 必须是数')
     assert.equal(typeof out.declaredHealth, 'number', 'declaredHealth 必须是数')
-    assert.equal(out.dimensionMeta.length, 5)
-    assert.equal(out.ranking.length, 5, 'ranking 要覆盖五维')
+    assert.equal(out.dimensionMeta.length, HEALTH_DIMENSIONS.length)
+    assert.equal(out.ranking.length, HEALTH_DIMENSIONS.length, 'ranking 要覆盖全部维度')
     assert.ok(Array.isArray(out.findings), 'findings 必须是数组')
     assert.ok(out.findings.length > 0, '新建的空项目必须有发现')
     // v0.19.8 修：主文档是 v6 五节（不是六节）；审查指令字段叫 promptIn（不是 prompt）
-    assert.equal(typeof out.sections, 'object', '要带主文档五节的计数')
+    assert.equal(typeof out.sections, 'object', '要带主文档各节的计数')
+    assert.deepEqual(Object.keys(out.sections).sort(), [...SECTION_ORDER].sort(), 'sections 的键 = SECTION_ORDER（引常量，改格式自动跟上）')
     assert.equal(typeof out.promptIn, 'string', '要带写点评的指令')
     // v0.19.8 修：指令文案已改（现行是「四段结构 + 带数字」那套），不再有「最弱的一维」这个说法
     // v0.19.8 修：promptIn 是**指针**（「提示段的『### 审查（op:audit）』一节（要原文给 verbose:true）」），

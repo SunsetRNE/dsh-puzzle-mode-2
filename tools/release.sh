@@ -8,17 +8,53 @@
 #   bash tools/release.sh v0.8.1                 # 用 .github/release-v0.8.1.md 当正文
 #   bash tools/release.sh v0.8.1 /path/notes.md  # 指定正文
 #   bash tools/release.sh v0.8.1 --check         # 只校验 token，不发
+#   bash tools/release.sh v0.8.1 --skip-tests    # 跳过测试门禁（**只在测试本身坏了时用**）
+#
+# ## 测试门禁（v0.19.8 加）
+#
+# 建 Release **之前**先跑 `npm test`，红就直接退出、不建 Release。
+# 为什么加：v0.19.7 的 tag 是在测试全红的状态下打出来的——测试长期红着，
+# 红成了常态，于是没人再看它。门禁把「红」变成**发不出去**，红一次就会被看见。
+# 逃生口是 `--skip-tests`，但**必须显式写出来**（默认跑），不给自己留静默通道。
 set -euo pipefail
 
 TAG="${1:-}"
 NOTES="${2:-}"
 TOKEN_FILE="${GITHUB_TOKEN_FILE:-$HOME/.dsh/.github-token}"
 REPO="liancha22/dsh-puzzle-mode"
+SKIP_TESTS=0
+if [ "$NOTES" = "--skip-tests" ]; then
+  SKIP_TESTS=1
+  NOTES=""
+fi
+for arg in "$@"; do
+  [ "$arg" = "--skip-tests" ] && SKIP_TESTS=1
+done
 
 if [ -z "$TAG" ]; then
-  echo "用法: bash tools/release.sh <tag> [正文文件|--check]" >&2
+  echo "用法: bash tools/release.sh <tag> [正文文件|--check|--skip-tests]" >&2
   exit 2
 fi
+
+# ---- 测试门禁：在**碰网络之前**跑，红就退出 ----
+if [ "$NOTES" != "--check" ] && [ "$SKIP_TESTS" != "1" ]; then
+  if [ ! -f package.json ]; then
+    echo "找不到 package.json —— 请在仓库根目录跑本脚本" >&2
+    exit 2
+  fi
+  echo "== 发版门禁：先跑 npm test =="
+  if ! npm test --silent; then
+    echo "" >&2
+    echo "✗ 测试没过，**不建 Release**。" >&2
+    echo "  → 先修红（或修测试本身）；确实要跳过就用 --skip-tests（会在输出里留痕）。" >&2
+    exit 1
+  fi
+  echo "✓ 测试全绿，继续发版"
+fi
+if [ "$SKIP_TESTS" = "1" ] && [ "$NOTES" != "--check" ]; then
+  echo "⚠ --skip-tests：本次**跳过测试门禁**，Release 是在未验证状态下建的。" >&2
+fi
+
 if [ ! -f "$TOKEN_FILE" ]; then
   echo "找不到 token 文件：$TOKEN_FILE" >&2
   exit 2

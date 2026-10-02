@@ -12,7 +12,11 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   AUDIT_PROMPT,
+  ASK_MAX_OPTIONS,
+  ASK_MAX_QUESTIONS,
   DIMENSION_FIX,
+  ENTRY_CAPS,
+  ENTRY_LIMITS,
   HEALTH_DIMENSIONS,
   HEALTH_HEADING,
   HEALTH_KEYS,
@@ -21,6 +25,9 @@ import {
   PAUSE_OPTIONS,
   PAUSE_QUESTION,
   PUZZLE_DIR,
+  SECTION_HEADINGS,
+  SECTION_ORDER,
+  MODULE_SECTION_HEADINGS,
   SESSION_FIELD,
   auditOf,
   bindSession,
@@ -129,8 +136,10 @@ try {
     // v0.19.8 修：这条断言停在文档格式 v4（检索索引 / 用户原话 / 悬而未决 / 已定 / 撤销），
     // 而现行格式是 v6 五节（模块索引 / 源码索引 / 工具索引 / 坑 / 工作流）——
     // 「悬而未决 / 已定」已下沉到模块文档，「用户原话 / 撤销」两节取消。断言按现行格式写。
-    for (const heading of ['## 模块索引', '## 源码索引', '## 工具索引', '## 坑', '## 工作流']) {
-      assert.ok(main.includes(heading), `主文档缺少 ${heading}`)
+    // 小节名**引常量**而不是写死（v0.19.8）：改格式只改 constants.js，这里自动跟上。
+    assert.deepEqual(SECTION_ORDER, ['index', 'source', 'tools', 'pit', 'workflow'])
+    for (const key of SECTION_ORDER) {
+      assert.ok(main.includes(SECTION_HEADINGS[key]), `主文档缺少 ${SECTION_HEADINGS[key]}`)
     }
     assert.ok(main.includes('模式: 只拼不写'))
 
@@ -162,7 +171,7 @@ try {
 
   check('显式分数优先于推导，并按维度名识别', () => {
     const declared = parseHealthDeclarations([
-      '## 健康性',
+      HEALTH_HEADING,
       '- 任务复杂度: 80',
       '- 可拓展性：75',
       '**维护系数**: 90',
@@ -702,14 +711,14 @@ try {
       rebuildProject(root2, 'legacy', true)
       const seeded = Math.min(100, Math.max(0, Math.round(100 * PROGRESS_TO_HEALTH)))
       const a = readFileSync(join(root2, 'legacy', PUZZLE_DIR, '模块', 'mod-a.md'), 'utf8')
-      const aHealth = a.slice(a.indexOf('## 健康性'))
+      const aHealth = a.slice(a.indexOf(HEALTH_HEADING))
       assert.ok(aHealth.includes('任务复杂度: ' + seeded), 'mod-a 空文档：复杂度该被折算填上')
       // 健康性要跟在 # 标题之后，而不是被插到文末。
       const aBody = a.split('---').slice(2).join('---')
       assert.ok(/^#\s/.test(aBody.trim().split('\n')[0]), '标题仍在最前')
-      assert.equal(aBody.trim().split('\n')[2].trim(), '## 健康性', '健康性紧跟标题')
+      assert.equal(aBody.trim().split('\n')[2].trim(), HEALTH_HEADING, '健康性紧跟标题')
       const b = readFileSync(join(root2, 'legacy', PUZZLE_DIR, '模块', 'mod-b.md'), 'utf8')
-      const bHealth = b.slice(b.indexOf('## 健康性'), b.indexOf('## 进度'))
+      const bHealth = b.slice(b.indexOf(HEALTH_HEADING), b.indexOf(MODULE_SECTION_HEADINGS.progress))
       assert.ok(!/- 任务复杂度: \d/.test(bHealth), 'mod-b 有要点：推导已够，不该被折算数字冻住')
       assert.ok(!bHealth.includes('折算'), '一维都没填时不该出现折算说明')
     } finally {

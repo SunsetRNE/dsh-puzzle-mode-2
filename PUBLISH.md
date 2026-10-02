@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.19.7（**更正 + 再压**。① 更正 v0.19.6 的错数字：把 `async` 函数当同步计时，`hrtime` 只量到第一个 `await` 之前，于是「127ms → 1.3µs（~100000×）」是假的，真实 **0.9ms（~140×）**。② 继续压：`boundProject` 每次工具调用全扫目录，stat 次数 ≈ **cwd 条目数**（`.git`/`.tgz` 都 stat），改内存记忆 + **文档纪元**失效（`atomicWrite` 每次写盘 +1，所以 bind/unbind/切模式后当场看到新值）+ 短 TTL 兜外部改动（正向 1s / 未绑定 5s）。实测 stat：已绑定 3→**2**，未绑定 14+1readdir→**1**；write/edit/bash 0.9ms→**0.65ms**，未绑定 8ms→**0.25ms**。代价：手工改绑可见性从立刻变最多 1 秒（实测 1.09s 自愈）。**行为逐字节不变**（原始 v0.19.5 跑同一串操作，状态 JSON 逐字节一致）。顺手删两处死代码（`options.fresh` 参数、`invalidateBoundProject` 导出）。含 v0.19.6 首轮优化与 v0.19.5 提问写深） |
+| 版本 | v0.19.8（**放开本项目的测试约定**（用户裁定）。背景：文档格式 v4→v6 后断言整片脱节，`npm test` 长期三红一绿，红成常态没人再看——**v0.19.7 的 tag 是在全红下打出来的**（外部贡献者 PR #2 指出并修好）。三条防复发：① 断言改引 `lib/constants.js` 常量（不再写死「5 问/六节/related」）；② 新增 `test/50-contract.test.mjs` **格式契约测试**——**故意钉字面量**，格式一变必须红（常量与模板同源，只引常量会漏：实测把 `SECTION_HEADINGS.pit` 改掉，15 条全绿）；③ `release.sh` **发版门禁**：建 Release 前跑 `npm test`，红则拒绝，`--skip-tests` 必须显式写且留痕。测试规模 112 项全绿。**只对本仓放开**，已写进 `~/.dsh/AGENTS.md` 第 0.1 节。含 v0.19.7 性能与 v0.19.6 更正） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
@@ -52,12 +52,29 @@ ln -s ~/.dsh/plugin-src/dsh-puzzle-mode <profile>/node_modules/dsh-puzzle-mode
 cd /root/.dsh/plugin-src/dsh-puzzle-mode
 # 1) 改 package.json 的 version（例如 0.16.6）+ 在 .github/ 写好 release-vX.Y.Z.md
 # 2) **同步文档版本引用**（漏了会被用户抓到，见下「发版检查清单」）
-# 3) 不跑测试（工作约定：不写测试、不跑测试；验收判据写进 Release 正文，交用户真机看）
-for f in lib/*.js; do node --check "$f" || echo "FAIL $f"; done   # 只做语法解析，防手滑
+# 3) 跑测试（v0.19.8 起**本项目放开**「不写测试/不跑测试」约定，见下）
+npm test                              # 全绿才继续；红了先修
+for f in lib/*.js; do node --check "$f" || echo "FAIL $f"; done   # 语法解析，防手滑
 git add -A && git commit -m "feat: …（vX.Y.Z）"
 git tag -f vX.Y.Z && git push origin HEAD --tags
-bash tools/release.sh vX.Y.Z          # 建 Release（正文取 .github/release-vX.Y.Z.md）
+bash tools/release.sh vX.Y.Z          # 建 Release（**内置测试门禁**，正文取 .github/release-vX.Y.Z.md）
 ```
+
+### ⚠️ 测试约定：**本项目已放开**（v0.19.8，用户裁定）
+
+全局约定（`~/.dsh/AGENTS.md`）是「不写测试、不跑测试」，理由是**断言钉死中间写法**、
+产品一改就连带改一堆断言，而真机才能判正确性。**本项目从 v0.19.8 起是例外**：
+
+| | 做法 |
+| --- | --- |
+| 为什么放开 | 长期不维护的结果是**测试整片脱节**：v4→v6 改造后 `npm test` 三红一绿，红成常态没人再看，v0.19.7 的 tag 是在全红下打出来的。**测试不是没用，是没人守** |
+| 怎么防复发 | ① 断言**引 `lib/constants.js` 的常量**（改实现不必满仓找断言）；② 新增 `test/50-contract.test.mjs` **格式契约测试**（格式一变必须红，且**故意钉字面量**）；③ `release.sh` **内置门禁**：测试红 → 不建 Release |
+| 边界 | 只约束**本仓**。别的项目仍按全局约定。**绿 ≠ 能用**——真机验收判据仍在 Release 正文里，测试只是地板不是天花板 |
+
+> 契约测试为什么**故意**不引常量：常量与模板同源，改常量时两边一起动、测试照样绿
+> （实测漏过：把 `SECTION_HEADINGS.pit` 改成「## 踩过的坑」，15 条全绿）。
+> 所以 `50-contract.test.mjs` 里有一组「**契约锚**」把格式钉成字面量——
+> 这正是它与单元测试的分界：单元测试引常量（不碍改动），契约测试钉字面量（拦下改动）。
 
 ### ⚠️ 发版检查清单（每次都要过一遍）
 
@@ -159,7 +176,7 @@ EOF
 
 | 项 | 命令 | 期望 |
 | --- | --- | --- |
-| 测试 | **不跑** | 工作约定：不写测试、不跑测试（`npm test` 里的旧自检断言钉死 v2 形状，红了不追）。验收判据写进该版本 Release 正文，交用户真机看 |
+| 测试 | `npm test` | **必须全绿**（v0.19.8 起本项目放开全局约定，见「3. 发布新版本」下的测试约定）。红 → `release.sh` 拒绝建 Release。绿只是地板：真机验收判据仍在 Release 正文里 |
 | 语法 | `for f in lib/*.js; do node --check "$f"; done` | 无输出 |
 | 打包内容 | `npm pack --dry-run` | 只有 `lib/ test/ cordis.patch.yml README.md UI.md PUBLISH.md LICENSE package.json`，无密钥 |
 | Release 附件 | 见「3. 发布新版本」 | Release 页有 `dsh-puzzle-mode-X.Y.Z.tgz`（**`release.sh` 不会自动传**） |
