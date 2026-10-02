@@ -9,5 +9,20 @@
     "forkDefault": "PZ_ORDER_FORK_DEFAULT",
     "upstream0197": "PZ_ORDER_UPSTREAM_0197"
   },
-  "notes": "两侧互校用的契约：本仓（拼图复刻仓）与 dsh-infinite-gen-5 各自声明同一组段序数字；任一方的 verify 脚本都读对方这一份并双向核对，任一侧改数字而另一侧没跟上即报错。"
+  "notes": "两侧互校用的契约：本仓（拼图复刻仓）与 dsh-infinite-gen-5 各自声明同一组段序数字；任一方的 verify 脚本都读对方这一份并双向核对，任一侧改数字而另一侧没跟上即报错。",
+  "textProbes": {
+    "ask-quota": {
+      "puzzle": "提问额度按轮的",
+      "ig5": "同一轮最多一问"
+    },
+    "batch-first": {
+      "puzzle": "不做打断者",
+      "ig5": "批量合同优先"
+    },
+    "stop-semantics": {
+      "puzzle": "不回退",
+      "ig5": "只停动作"
+    }
+  },
+  "textProbeNotes": "文本层互校：三条分工规则的**可核关键词**（左右各一）。本仓 verify 检查：① 自己的 lib/index.js 政策文本含 puzzle 侧关键词；② 装了无限五代时，其 data/arbitration.mjs 含 ig5 侧关键词。对方做同样的事。任一侧改了文案而没同步这张表 → 两侧同时红。"
 }

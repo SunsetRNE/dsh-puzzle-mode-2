@@ -94,6 +94,34 @@ if (ig5) {
   }
 }
 
+
+// ── 文本层互校（v0.19.11）：三条分工规则的可核关键词，两侧各自自证 + 互校 ──
+{
+  const decl = JSON.parse(readFileSync(join(ROOT, 'compat.json'), 'utf8'))
+  const probes = decl.textProbes || {}
+  const ruleIds = Object.keys(probes)
+  ok('文本互校表覆盖三条规则（额度 / 批量优先 / 停下语义）',
+    ruleIds.length === 3 && ['ask-quota', 'batch-first', 'stop-semantics'].every((k) => k in probes),
+    ruleIds.join(', '))
+
+  // 自证：本仓政策文本必须含 puzzle 侧关键词
+  const policy = readFileSync(join(ROOT, 'lib', 'index.js'), 'utf8')
+  const selfMiss = ruleIds.filter((k) => !policy.includes(probes[k].puzzle))
+  ok('自证：本仓政策文本含三条 puzzle 侧关键词', selfMiss.length === 0,
+    selfMiss.length ? '缺：' + selfMiss.map((k) => k + '→' + probes[k].puzzle).join(' / ') : ruleIds.join(', '))
+
+  // 互校：装了无限五代时，其 arbitration 文件必须含 ig5 侧关键词
+  const ig5 = IG5_DIRS.find((d) => existsSync(join(d, 'data', 'arbitration.mjs')))
+  if (!ig5) {
+    ok('未装无限五代 → 文本互校跳过（表已声明）', true, 'textProbes 已记录 ig5 侧关键词')
+  } else {
+    const arb = readFileSync(join(ig5, 'data', 'arbitration.mjs'), 'utf8')
+    const otherMiss = ruleIds.filter((k) => !arb.includes(probes[k].ig5))
+    ok('互校：无限五代文本含三条 ig5 侧关键词', otherMiss.length === 0,
+      otherMiss.length ? '缺：' + otherMiss.map((k) => k + '→' + probes[k].ig5).join(' / ') : ruleIds.join(', '))
+  }
+}
+
 const failed = results.filter((r) => !r.ok)
 for (const r of results) console.log(`  ${r.ok ? '✅' : '❌'} ${r.claim}${r.detail ? ' — ' + r.detail : ''}`)
 console.log(`\n跨插件握手校验： ${results.length - failed.length} 通过 / ${failed.length} 失败（共 ${results.length} 项）${ig5 ? ' · 已核对 ' + ig5 : ''}`)
