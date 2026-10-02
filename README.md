@@ -4,6 +4,10 @@
 > 让 AI 主动提问、把不确定项变成已定项，并在输入框的**模型选择器左边**
 > 放一个显示**项目健康性**的小按钮。
 
+> **本仓定位**：`SunsetRNE/dsh-puzzle-mode-2` 是[上游 `dsh-puzzle-mode`](https://github.com/liancha22/dsh-puzzle-mode) 的
+> **兼容性复刻仓** —— 上游管功能，本仓管**与其它 DSH 插件共存**（段序可协商、跨插件分工条款、握手校验
+> `npm run verify:cross`、上游同步器 `npm run sync:upstream`）。逐条差异与同步原则见 [`COMPAT.md`](COMPAT.md)。
+
 ![面板速览](.github/images/00-首页速览.png)
 
 **它解决什么**：长会话里，项目的关键决定散落在聊天记录里——AI 会忘，你也没处查。

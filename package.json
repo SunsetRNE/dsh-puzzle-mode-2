@@ -1,7 +1,7 @@
 {
   "name": "dsh-puzzle-mode",
-  "version": "0.20.5",
-  "description": "DSH 插件：拼图模式——把项目拆成主文档 + 若干模块文档，AI 主动提问把不确定项变成已定项，用五维（任务复杂度 / 可拓展性 / 维护系数 / 代码质量 / 可复用性）算项目健康性。**一个会话可同时绑多个项目**（单绑定 / 多绑定两种模式），面板有绑定切换条可在绑定的项目间换当前；拦截按全部绑定里最严的模式算，工作流按命中的项目各自注入。主文档第五节 `## 工作流` 是**标准化流水线**（一条 = 一个 `### 名字` 块 + 有序步骤），块内可写 `触发: 关键词`——命中该动作时自动注入。文档格式 v7，带 op:rebuild 迁移、op:settings 按会话开关与三种执行模式。完整说明见 README。",
+  "version": "0.20.6",
+  "description": "[兼容性复刻仓 SunsetRNE/dsh-puzzle-mode-2 · 上游 liancha22/dsh-puzzle-mode] 在上游基础上加「与其它 DSH 插件共存」的适配：段序可协商（默认 10100，可 PUZZLE_SECTION_ORDER 覆盖）、六条分工规则的可核契约（compat.json textProbes + 两侧互校）、握手校验 npm run verify:cross、上游同步器 npm run sync:upstream、互校归档 npm run log:compat。DSH 插件：拼图模式——把项目拆成主文档 + 若干模块文档，AI 主动提问把不确定项变成已定项，用五维（任务复杂度 / 可拓展性 / 维护系数 / 代码质量 / 可复用性）算项目健康性。**一个会话可同时绑多个项目**（单绑定 / 多绑定两种模式），面板有绑定切换条可在绑定的项目间换当前；拦截按全部绑定里最严的模式算，工作流按命中的项目各自注入。主文档第五节 `## 工作流` 是**标准化流水线**（一条 = 一个 `### 名字` 块 + 有序步骤），块内可写 `触发: 关键词`——命中该动作时自动注入。文档格式 v7，带 op:rebuild 迁移、op:settings 按会话开关与三种执行模式。完整说明见 README。",
   "license": "MIT",
   "type": "module",
   "main": "lib/index.js",
@@ -21,7 +21,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "test": "node test/10-puzzle.test.mjs && node test/20-client.test.mjs && node test/30-rpc.test.mjs && node test/40-pre-execute.test.mjs && node test/50-contract.test.mjs",
+    "test": "node test/10-puzzle.test.mjs && node test/20-client.test.mjs && node test/30-rpc.test.mjs && node test/40-pre-execute.test.mjs && node test/50-contract.test.mjs && node tools/verify-cross-plugin.mjs",
     "test:contract": "node test/50-contract.test.mjs",
     "render-tutorial": "node tools/render-tutorial.mjs"
   },
