@@ -17,7 +17,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.19.8** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.19.9** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -28,7 +28,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.8
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.9
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -39,7 +39,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.19.8.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.8/dsh-puzzle-mode-0.19.8.tgz)
+[dsh-puzzle-mode-0.19.9.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.9/dsh-puzzle-mode-0.19.9.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -56,6 +56,40 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.19.9 · 三条通用约束：别靠「记住」，靠「撞见就红」
+
+用户原话：**「你说你现在的自觉性还不强，有什么通用建议给拼图插件增强约束」**。
+
+这一轮暴露的规律很清楚：
+
+| 规则 | 写在哪 | 结果 |
+| --- | --- | --- |
+| 「description 别堆版本历史」 | `PUBLISH.md` **早就写着** | ✗ 我还是违反了——改 `package.json` 时**撞不见它** |
+| 「测试要跑」 | 先只写文档 | ✗ 没用；加了 `release.sh` 门禁 → ✓ 真管住了 |
+| 「条目要带出处」 | `checkEntry` **写入时校验** | ✓ 从没漏过——写的时候就红 |
+
+**同一条规则，「写在文档里」和「在动作那一刻报错」是两个物种。** 三条约束都朝这个方向做。
+
+| # | 约束 | 关键设计 |
+| --- | --- | --- |
+| ① | 工作流可写 `触发: 关键词`，命中该动作时自动注入 | 落在 `tools/post-execute`（`additionalContexts`）：**不拦、不弹窗**，工具照常成功 |
+| ② | 数字须带测法，否则 audit 报 warn | 只认 `ms/µs/KB/MB/倍` 这类**换个机器就会变**的度量；`≤4 条`「五节」是规定，不报 |
+| ③ | 写「已定」时回显现有条目 | **不做自动判冲突**——实测字面算法拿不到可用阈值（真冲突只 1 分） |
+
+**① 为什么不用 `pre-execute`**：它只有 `allow`/`deny`/`ask`——`deny` 会拦下工具（改个
+`package.json` 就报错），`ask` 会弹审批框（比不提醒更烦），而 `allow` **不能附带任何信息**。
+`post-execute` 的 `additionalContexts` 才是「非阻塞提醒」的唯一通道。
+
+**③ 为什么只回显不判断**：按 2-gram 打分时，真冲突「不写测试不跑测试」vs「要跑测试」
+**只拿 1 分**（只共享「测试」两字）——阈值 2 会漏、降到 1 会误报。根因是
+**「矛盾」是语义关系不是字面关系**。所以只做确定能做对的那一半：把旧条目摊出来让模型自己判。
+
+**三条守卫都验证过真能抓到破坏**：让 ① 不写回 `触发:` ✓ 红、把 ② 改成拒绝 ✓ 红、
+关掉 ③ 的接线 ✓ 红（这条**最初漏过**——只测纯函数时接线断了照样全绿，已改成走真实写入路径）。
+
+**边界**：这三条**都不是**「保证模型不犯错」，只是把**违反变得可见**。
+真正硬的是「条目必须带出处」那种**写入时直接拒绝**的规则；②③ 受限于语义判断做不准，只能做到可见。
 
 ### v0.19.8 · 放开本项目的测试约定：测试曾经整片脱节，现在有门禁
 
@@ -136,47 +170,12 @@ npm test  →  10-puzzle 55 项 / 20-client / 30-rpc 31 项 / 40-pre-execute 7 �
 **行为逐字节不变**：原始 v0.19.5 与本版跑同一串操作（init→写坑→写健康性→切模式→
 解绑→重绑→再解绑→再重绑→再写），状态 JSON **逐字节一致**。
 
-### v0.19.6 · 性能：每次工具调用同步阻塞 127ms → 0.9ms
-
-用户反馈：**「装了插件速度变慢了不少」**。量下来是真的，而且根因不在某条业务逻辑，
-而在**钩子挂的位置**：
-
-`tools/pre-execute` 挂在**每一次工具调用**上，而它一路走到 `readState`——把工作区里
-**9 份主文档 + 全部模块文档**同步读一遍，再算健康性 / 条目合规 / 工作流 / 引用源码。
-**而这一整条链只为了回答一个问题**：「本会话绑定的项目是不是『只拼不写』模式」。
-算完的 99% 当场丢掉。实测 **127ms/次**（同步阻塞事件循环），20 次调用的回合 ≈ **2.5 秒**
-纯等待；**不绑项目的用户也在付这笔钱**（86ms/次）。
-
-四处改动：
-
-| # | 改动 | 为什么 |
-| --- | --- | --- |
-| 1 | 热路径只读 `readProjectMode()`（一份主文档的 front-matter） | 只回答「什么模式」，不碰健康性/模块/条目 |
-| 2 | `readTextCached()`，指纹 `mtimeMs + size` | 加 `size` 是因为 `mtime` 在部分文件系统上只有秒级粒度 |
-| 3 | 绑定记忆：**没有时间窗口**，命中时重新验证 | TTL 会留下「刚改绑读到旧的」窗口；验证则当场正确 |
-| 4 | 提示段与设置常量化 | `policyText` 每步重拼 6042 字符（2.1ms）；`readSettings` 每步读盘解析 |
-
-**失效点只有一处**：全仓仅 `docfs.atomicWrite` 有 `writeFileSync`，11 个写路径全部收口，
-所以不存在「某条路径忘了失效」。
-
-| 指标 | 改前 | 改后 |
-| --- | --- | --- |
-| 每次工具调用 | 127.3 ms | **0.9 ms** |
-| 每 step 提示段 | 2.143 ms | 0.603 ms |
-| 20 次调用的回合 | ≈ 2.59 s | ≈ 0.02 s |
-
-**行为逐字节不变**：拿 `git HEAD` 的原始代码与改后代码跑同一串操作（设置禁用/恢复 +
-init→写坑→写健康性→切模式→解绑→重绑），状态序列化后 JSON **逐字节一致**。
-
-**关键一条：没有缓存用户源码。** `source.js` 读项目源码仍走无缓存 `readText`——
-源码被 `edit` / `bash` 改，绕过 `atomicWrite`，缓存它会让审查报出**过期的行数**。
-只有拼图文档（写入全部收口）进缓存。
 
 
 
 ### 更早的版本
 
-v0.19.5 及更早（一直到 v0.9.0）的说明已挪到 **[CHANGELOG.md](CHANGELOG.md)**；
+v0.19.6 及更早（一直到 v0.9.0）的说明已挪到 **[CHANGELOG.md](CHANGELOG.md)**；
 每个版本的完整正文与验收判据见 [Releases](https://github.com/liancha22/dsh-puzzle-mode/releases)。
 
 ---
@@ -231,6 +230,7 @@ puzzle: 5
 ## 工作流
 
 ### 发布新版本
+触发: package.json, release.sh
 1. 先改 `package.json` 的 version 与 `.github/release-vX.Y.Z.md`
 2. 跑 `node --check lib/*.js` 确认语法
 3. `git commit` 并打 tag、推送
@@ -240,6 +240,14 @@ puzzle: 5
 1. `op:module` 建模块文档
 2. `op:main section:'index'` 补主文档的模块索引行
 ```
+
+**可选的 `触发: 关键词`**（v0.19.9）：写了这一行的块，会在**命中该动作时自动注入**——
+比如上面那条写了 `触发: package.json`，你用 `write` 改到 `package.json` 时，
+整条工作流会作为上下文送到模型面前，**不拦工具、不弹窗**。
+没写 `触发:` 的块照旧只在提示段常驻。
+
+> 为什么加它：`PUBLISH.md` 里早就写着「description 别堆版本历史」，但改 `package.json` 时
+> **撞不见它**，照样违反。规则躺在文档里，不如在动作发生的那一刻出现。
 
 四条硬规则：
 

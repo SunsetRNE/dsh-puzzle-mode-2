@@ -46,6 +46,11 @@ import {
   SECTION_ORDER,
   SOURCE_MARK,
   WORKFLOW_MAX_STEPS,
+  conflictDigest,
+  measureWithoutMethod,
+  parseWorkflowBlocks,
+  readWorkflow,
+  workflowsTriggeredBy,
   createProject,
   docVersion,
   extraSectionsIn,
@@ -236,6 +241,82 @@ try {
     const tooMany = '### 超步数流程\n' + steps.join('\n')
     const result = updateMainSection(root, 'demo', 'workflow', tooMany, false)
     assert.equal(result.ok, false, `超过 ${WORKFLOW_MAX_STEPS} 步必须报错（步骤是有序的路，不能静默删）`)
+  })
+
+
+  /* ---------------- v0.19.9 的三条约束：各自「故意违反」也要能红 ---------------- */
+
+  // 用户原话：「你说你现在的自觉性还不强，有什么通用建议给拼图插件增强约束」。
+  // 三条都遵循同一个原则：**别靠记住，靠撞见；撞见就红**。
+  // 所以每条都配一个「故意违反」用例——守卫写完不算数，**能抓到才算数**
+  // （实测踩过：契约测试最初 15 条全绿，却漏掉两种真实漂移）。
+
+  check('① 工作流触发：`触发:` 被解析成声明，**不算步骤**', () => {
+    const blocks = parseWorkflowBlocks('### 发版\n触发: package.json\n1. 改 version。\n2. 传附件。')
+    assert.equal(blocks.length, 1)
+    assert.equal(blocks[0].trigger, 'package.json', '触发声明必须被解析出来（不是第 1 步）')
+    assert.equal(blocks[0].steps.length, 2, '触发声明不该算进步骤')
+  })
+
+  check('① 工作流触发：命中参数、且不误伤无关文件', () => {
+    const blocks = parseWorkflowBlocks('### 发版\n触发: package.json\n1. 改 version。')
+    assert.equal(workflowsTriggeredBy(blocks, 'write', { file_path: '/x/package.json' }).length, 1)
+    assert.equal(workflowsTriggeredBy(blocks, 'write', { file_path: '/x/other.js' }).length, 0, '无关文件不该触发')
+    assert.equal(workflowsTriggeredBy(blocks, 'write', { file_path: '/x/a.js' }).length, 0)
+  })
+
+  check('① 触发声明必须**写回**文档（丢了机制就是死的）', () => {
+    // 实测踩过：renderWorkflowBlock 最初没写回 `触发:`，
+    // 于是它变成第 1 步、下次解析不出触发——功能看着实现了，实际永不触发。
+    const written = updateMainSection(root, 'demo', 'workflow', '### 发版\n触发: package.json\n1. 改 version。', false)
+    assert.equal(written.ok, true)
+    const main = readFileSync(mainPath, 'utf8')
+    const back = readWorkflow(parseFrontMatter(main).body)
+    assert.equal(back[0].trigger, 'package.json', '写回后必须仍解析出触发声明')
+    assert.equal(back[0].steps.length, 1, '写回后步骤数不变')
+  })
+
+  check('② 数字须带测法：无测法 → 警告；有测法 / 规格计数 → 不警告', () => {
+    assert.ok(measureWithoutMethod('热路径 127ms') !== null, '报了 ms 却没测法 → 必须警告')
+    assert.ok(measureWithoutMethod('热路径 127ms，实测中位数 / 20 次') === null, '有测法 → 不该警告')
+    assert.equal(measureWithoutMethod('悬而未决最多 4 条'), null, '规格计数不是度量，不该警告')
+    assert.equal(measureWithoutMethod('主文档五节'), null, '无度量单位，不该警告')
+  })
+
+  check('② 数字没测法**只警告不拒绝**（拦下来会逼模型删掉证据）', () => {
+    const result = updateModuleSection(root, 'demo', 'mod-a', 'points', '- 热路径 127ms（源码: lib/a.js:1）', true)
+    assert.equal(result.ok, true, '必须放行——这是语义判断，启发式会有假阳性')
+    const moduleText = readFileSync(join(projectDir, MODULE_DIR, 'mod-a.md'), 'utf8')
+    assert.ok(moduleText.includes('127ms'), '数字不能被悄悄丢掉')
+  })
+
+  check('③ 写「已定」**经真实写入路径**回显现有条目（接线断了也要红）', () => {
+    // 这条必须走 `updateModuleSection`，不能只测 `conflictDigest` 本身——
+    // 实测踩过：只测纯函数时，把 `updateModuleSection` 里的接线关掉，
+    // 契约测试**照样全绿**（26 项通过），等于没守。
+    updateModuleSection(root, 'demo', 'mod-a', 'decided', '- 旧决定甲（源码: lib/a.js:1）', false)
+    const written = updateModuleSection(root, 'demo', 'mod-a', 'decided', '- 新决定乙（源码: lib/a.js:2）', true)
+    assert.equal(written.ok, true)
+    const digest = written.conflicts
+    assert.ok(digest !== null && digest !== undefined, '真实写入路径必须把 conflicts 带回来')
+    assert.deepEqual(digest.existing, ['旧决定甲'], '要回显该小节**写入前**的旧条目')
+    assert.ok(digest.hint.includes('append:false'), '要明确告诉模型「别只追加」')
+  })
+
+  check('③ 纯函数行为：零误报、不做语义判断（字面算法拿不到可用阈值）', () => {
+    // 实测：真冲突「不写测试不跑测试」vs「本项目测试要跑要维护」只共享「测试」，
+    // 2-gram 重叠仅 1 分 —— 阈值 2 会漏，降到 1 会误报。所以**不判**，只回显。
+    const digest = conflictDigest('decided', ['毫不相干的决定'], ['另一件毫不相干的事'], ENTRY_CAPS.decided)
+    assert.deepEqual(digest.existing, ['毫不相干的决定'], '不管像不像，旧条目都原样给出（由模型判）')
+    assert.equal(conflictDigest('decided', [], ['x'], ENTRY_CAPS.decided), null, '没有旧条目就不打扰')
+  })
+
+  check('③ 回显是**零误报**的：不做语义判断（字面算法拿不到可用阈值）', () => {
+    // 实测：真冲突「不写测试不跑测试」vs「本项目测试要跑要维护」只共享「测试」，
+    // 2-gram 重叠仅 1 分 —— 阈值 2 会漏，降到 1 会误报。所以**不判**，只回显。
+    const digest = conflictDigest('decided', ['毫不相干的决定'], ['另一件毫不相干的事'], ENTRY_CAPS.decided)
+    assert.deepEqual(digest.existing, ['毫不相干的决定'], '不管像不像，旧条目都原样给出（由模型判）')
+    assert.equal(conflictDigest('decided', [], ['x'], ENTRY_CAPS.decided), null, '没有旧条目就不打扰')
   })
 
   check('契约·固定收尾问文案与两个选项都在（引 PAUSE_QUESTION / PAUSE_OPTIONS）', () => {

@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.19.8（**放开本项目的测试约定**（用户裁定）。背景：文档格式 v4→v6 后断言整片脱节，`npm test` 长期三红一绿，红成常态没人再看——**v0.19.7 的 tag 是在全红下打出来的**（[@SunsetRNE](https://github.com/SunsetRNE) 在 [PR #2](https://github.com/liancha22/dsh-puzzle-mode/pull/2) 指出并修好）。三条防复发：① 断言改引 `lib/constants.js` 常量（不再写死「5 问/六节/related」）；② 新增 `test/50-contract.test.mjs` **格式契约测试**——**故意钉字面量**，格式一变必须红（常量与模板同源，只引常量会漏：实测把 `SECTION_HEADINGS.pit` 改掉，15 条全绿）；③ `release.sh` **发版门禁**：建 Release 前跑 `npm test`，红则拒绝，`--skip-tests` 必须显式写且留痕。测试规模 112 项全绿。**只对本仓放开**，已写进 `~/.dsh/AGENTS.md` 第 0.1 节。含 v0.19.7 性能与 v0.19.6 更正） |
+| 版本 | v0.19.9（**三条通用约束**，起因：用户问「自觉性还不强，怎么增强约束」。原则：**别靠记住，靠撞见就红**。① `## 工作流` 块可写 `触发: 关键词`，命中该动作时把工作流原文注入（落 `tools/post-execute` 的 `additionalContexts`——`pre-execute` 只有 allow/deny/ask，deny 会拦工具、ask 会弹审批、allow 不能带信息，做不到「非阻塞提醒」）；② 条目里的度量（ms/µs/KB/MB/倍）须带测法否则 audit 报 warn——**只警告不拒绝**，拦下来会逼模型删证据；③ 写「已定」时回显现有条目，**不做自动判冲突**（实测 2-gram 对真冲突只给 1 分，阈值 2 会漏、降到 1 会误报；「矛盾」是语义关系不是字面关系）。三条守卫都验证过「真能抓到破坏」（含一条最初漏过的：只测纯函数时接线断了照样全绿）。测试 120 项全绿。含 v0.19.8 测试约定放开） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
