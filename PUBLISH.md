@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.19.6（**性能**：每次工具调用同步阻塞 **127ms → 1.3µs**。根因是 `tools/pre-execute` 挂在**每一次工具调用**上却一路走到 `readState`——读 9 份主文档 + 全部模块文档并算健康性/条目/工作流，**只为回答「是不是只拼不写模式」**，99% 当场丢掉。四处改动：① 热路径改 `readProjectMode()` 只读一份主文档 front-matter；② `readTextCached()` 按 `mtimeMs + size` 缓存文档；③ 绑定记忆**没有时间窗口**（命中时重新验证，改绑/解绑当场正确），并去掉 `listProjects` 的 13 次 statSync；④ 提示段与设置常量化。**失效点只有一处**：全仓仅 `docfs.atomicWrite` 有 writeFileSync，11 个写路径全收口。**行为逐字节不变**（拿 HEAD 原始代码跑同一串操作，状态 JSON 逐字节一致）。**没缓存用户源码**——`source.js` 读源码仍无缓存，否则审查会报过期行数。含 v0.19.5 提问写深与 v0.19.4 上限放开） |
+| 版本 | v0.19.7（**更正 + 再压**。① 更正 v0.19.6 的错数字：把 `async` 函数当同步计时，`hrtime` 只量到第一个 `await` 之前，于是「127ms → 1.3µs（~100000×）」是假的，真实 **0.9ms（~140×）**。② 继续压：`boundProject` 每次工具调用全扫目录，stat 次数 ≈ **cwd 条目数**（`.git`/`.tgz` 都 stat），改内存记忆 + **文档纪元**失效（`atomicWrite` 每次写盘 +1，所以 bind/unbind/切模式后当场看到新值）+ 短 TTL 兜外部改动（正向 1s / 未绑定 5s）。实测 stat：已绑定 3→**2**，未绑定 14+1readdir→**1**；write/edit/bash 0.9ms→**0.65ms**，未绑定 8ms→**0.25ms**。代价：手工改绑可见性从立刻变最多 1 秒（实测 1.09s 自愈）。**行为逐字节不变**（原始 v0.19.5 跑同一串操作，状态 JSON 逐字节一致）。顺手删两处死代码（`options.fresh` 参数、`invalidateBoundProject` 导出）。含 v0.19.6 首轮优化与 v0.19.5 提问写深） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
