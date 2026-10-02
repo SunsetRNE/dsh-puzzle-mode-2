@@ -64,7 +64,10 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 放开不是"测试突然有用了"，而是**不守的代价被实测到了**：文档格式 v4 → v6 改造后，
 断言停在旧格式（六节主文档、`related` 合体小节、项目级健康性、裸条目），实现早改了，
 于是 `npm test` 长期**三红一绿**——**红成了常态就没人再看它**，
-**v0.19.7 的 tag 是在测试全红的状态下打出来的**（外部贡献者 PR #2 指出并修好）。
+**v0.19.7 的 tag 是在测试全红的状态下打出来的**——是
+[@SunsetRNE](https://github.com/SunsetRNE) 在 [PR #2](https://github.com/liancha22/dsh-puzzle-mode/pull/2)
+里指出并修好的：他把 3 个测试文件（+201 / −180）对齐到现行实现，`npm test` 由三红一绿转为全绿。
+本版的契约测试与发版门禁是接着他的方向做的。
 
 > ⚠️ 全局约定「不写测试、不跑测试」**只对这一个仓放开**，已写进 `~/.dsh/AGENTS.md` 第 0.1 节。
 
@@ -583,6 +586,22 @@ puzzle-style-diag applied=<真值> rules=<条数|null> inset=… color-mix=… b
 范围：`^0.1.6-rc.1` 指向一个从未发布的版本，按 semver 预发布规则把
 整个 `0.1.6-alpha` 与 `0.1.7-alpha` 系列都排除在外了（13 个已发布版本里 9 个不满足）。
 现在按每个 minor 锚到最早存在的预发布版，13 个全覆盖。
+
+---
+
+## 致谢
+
+按时间倒序，记下**具体做了什么**——名字后面不是客套，是可回查的改动。
+
+- **[@SunsetRNE](https://github.com/SunsetRNE)** ·
+  [PR #2](https://github.com/liancha22/dsh-puzzle-mode/pull/2)（已合并，v0.19.8 一并发布）：
+  发现 `npm test` 在 v0.19.7 上**三红一绿**（文档格式 v4 → v6 改造后断言整片脱节），
+  把 `test/10-puzzle` `test/20-client` `test/30-rpc` 三个文件对齐到现行实现
+  （+201 / −180），并给出三条建议——**本版的「断言引常量 / 格式契约测试 / 发版门禁」
+  正是接着这三条做的**。他还指出 v0.19.7 的 tag 是在测试全红下打出来的。
+
+发现 bug、提 PR、纠正文档都算。这个项目**没有** `CONTRIBUTORS` 文件——名单就在这里，
+`git log` 是第二份（提交作者身份原样保留，`git log --author=SunsetRNE` 查得到）。
 
 ---
 
