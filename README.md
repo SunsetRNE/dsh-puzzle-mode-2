@@ -4,6 +4,8 @@
 > 让 AI 主动提问、把不确定项变成已定项，并在输入框的**模型选择器左边**
 > 放一个显示**项目健康性**的小按钮。
 
+![面板速览](.github/images/00-首页速览.png)
+
 **它解决什么**：长会话里，项目的关键决定散落在聊天记录里——AI 会忘，你也没处查。
 拼图模式把这些决定落到**你随时能打开看的文件**里：主文档当查找入口，
 模块文档存细节，每条都带源码出处，随时能回查。
@@ -15,7 +17,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.19.1** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.19.2** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -26,7 +28,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.1
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.2
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -37,7 +39,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.19.1.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.1/dsh-puzzle-mode-0.19.1.tgz)
+[dsh-puzzle-mode-0.19.2.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.2/dsh-puzzle-mode-0.19.2.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -54,6 +56,29 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.19.2 · 面板教程配图（照着 UI.md 渲染，可复现）
+
+README 顶部与 [UI.md](UI.md) 各节现在**带图**了：10 张 PNG，全部由
+`npm run render-tutorial` **照着 `UI.md` 渲染**出来——图与正文同源，
+改完正文重跑一次即可，不存在「图与文字对不上」的中间态。
+
+> 为什么强调「可复现」：工作区里原先那批教程图是 **v0.16.4** 时期手工渲染的，
+> 而 `UI.md` 已经改过 4 处（模式名、文档格式 v5→v6、工作流改成图块式交互、
+> 归档加了「永久删除」）。**图与正文对不上，比没有图更糟**——
+> 所以这次不只是补图，而是补了一条能重跑的路。
+
+脚本踩过三个坑，都写进 [PUBLISH.md](PUBLISH.md) 了：页面宽必须按 **830px**
+（GitHub 正文宽）而不是 1400 渲染，否则进页面被缩到 0.59x、字糊；渲染前要
+**剥掉正文里的 `![](...)`**，否则自引用会渲染出一排破图图标；表格要
+`table-layout:fixed`，否则窄宽下长句把表格撑出画布。
+
+**体积**：渲染后量化到 256 色，5.6MB → **2.2MB**（文字仍锐利）。
+图放 `.github/images/`，**随仓库分发**（`plugin-manager.py github` 下的是整仓 tarball），
+所以装了插件的人本机看文档也能看到图。
+
+> 真面板截图（工作区 `预览/面板-*.png` 那类）**不是**本脚本产出的——那必须真面板
+> 跑起来截，本脚本产出的是「`UI.md` 的渲染图」，两者不是一回事。
 
 ### v0.19.1 · 修 v0.19.0 首轮判定的两个真缺陷 + 三处审查发现
 

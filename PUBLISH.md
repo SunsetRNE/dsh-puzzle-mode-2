@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.19.1（修 v0.19.0 首轮判定的两个真缺陷：判据从 `step === 1` 改为 `turn === 1 && step === 1`（`AgentLoop` 每 turn 归零 step，恢复的历史会话会误触发）、新增 `isDelegatedSession` 排除子代理（其首条 prompt 同样是 `role:'user'` 但没有用户可问）；外加一轮 `op:audit` 的三条：`markFired` 落闸太早致「报 fired 却未注入」、`resetFired` 死导出、触发条件文案 4 处漂移收成 `FIRST_RUN_CONDITIONS` 单一来源。含 v0.19.0 的首轮自动判定与 v0.18.0 的函数形状审查判据） |
+| 版本 | v0.19.2（面板教程配图：10 张 PNG 由 `npm run render-tutorial` **照着 `UI.md` 渲染**，图与正文同源、可重跑；页面宽按 GitHub 正文宽 830px 渲染、渲染前剥掉正文里的图片引用（防自引用破图）、表格 `table-layout:fixed`；量化 256 色 5.6MB→2.2MB。含 v0.19.1 的首轮判定修复与 v0.19.0 的首轮自动判定） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
@@ -73,9 +73,32 @@ bash tools/release.sh vX.Y.Z          # 建 Release（正文取 .github/release-
 | 5 | `PUBLISH.md` | 第 0 节状态表的版本与日期 |
 | 6 | `package.json` | `version`（description 只留一句当前亮点，**别堆版本历史**） |
 | 7 | `.github/release-vX.Y.Z.md` | 新版本的正文 + 「验收判据」一节 |
+| 8 | `.github/images/` | **改过 `UI.md` 就必须重渲染**：`npm run render-tutorial`（见下） |
 
 > 第 1 条是**用户明确要求**的（2026-10-01）：「每次有更新都要改 readme」。
 > 已经写进拼图文档的 `## 工作流`，每一步都会注入。
+
+### ⚠️ 改过 `UI.md` 就要重渲染教程图（第 8 条）
+
+`.github/images/` 里那 10 张图是**照着 `UI.md` 渲染**的（README 顶部 1 张 + UI.md 各节 8 张
++ 整份长图 1 张）。`UI.md` 一改，图就与正文不一致——**图与文字对不上比没有图更糟**。
+
+```bash
+npm run render-tutorial        # 需要 marked（devDependency）+ playwright 的 chromium
+```
+
+脚本的三条硬约束（都踩过，改脚本时别丢）：
+
+1. **页面宽必须按 830px 渲染**，不是 1400。GitHub 会把宽于正文的图等比缩到约 830，
+   按 1400 渲染的图进页面实际是 0.59x，字小到读不清；
+2. **渲染前要剥掉正文里的 `![](...)`**。图被 `UI.md` 自己引用，而脚本又照着 `UI.md`
+   渲染——不剥就是自引用，`setContent` 没有 base URL，渲染结果里会出现一排**破图图标**；
+3. **表格要 `table-layout:fixed` + `word-break`**，否则窄宽下「内容」列的长句会把表格撑出画布。
+
+产出后跑一次量化（脚本内自动做）：256 色，约 5.6MB → 2.2MB，文字仍锐利。
+
+> 真面板截图（`预览/面板-*.png` 那类）**不能**由本脚本生成——它必须真面板跑起来截。
+> 本脚本产出的是「`UI.md` 的渲染图」，两者不是一回事。
 
 > 标签已存在时要 `git tag -f` **加** `git push -f origin vX.Y.Z`：
 > 只 `git push origin HEAD --tags` 会被 `! [rejected] (already exists)` 挡回来。
