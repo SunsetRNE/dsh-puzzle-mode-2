@@ -73,6 +73,10 @@ const entry = {
   puzzleDefaultOrder: compat.puzzleDefaultOrder ?? null,
   ig5TailOrder: compat.ig5TailOrder ?? num(/IG5_TAIL_ORDER = (\d+)/),
   textProbeCount: Object.keys(compat.textProbes || {}).length,
+  // 上游基线：本仓 = 上游 + 兼容面，所以「当时对标哪个上游」比版本号更能说明问题（rebase 后必变）。
+  upstreamHead: (() => {
+    try { return execFileSync('git', ['rev-parse', '--short', 'upstream/main'], { cwd: ROOT, encoding: 'utf8' }).trim() } catch { return null }
+  })(),
   verifyCross: cross,
   ig5Arbitration: ig5Dir ? ig5Arb : null,
   verdict: cross.fail === 0 && (!ig5Dir || (ig5Arb && ig5Arb.fail === 0)) ? 'ok' : 'drift',
