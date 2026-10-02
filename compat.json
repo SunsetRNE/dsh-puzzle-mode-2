@@ -30,6 +30,10 @@
     "tool-shape": {
       "puzzle": "按各自 schema 给",
       "ig5": "既有工具 schema 不受"
+    },
+    "tail-concede": {
+      "puzzle": "早于它的末位锚点",
+      "ig5": "只声明本载荷末位"
     }
   },
   "textProbeNotes": "文本层互校：五条分工规则各记左右关键词（含域划分与工具形态）。两侧 verify 都读这张表、各自自证 + 互相核对。"
