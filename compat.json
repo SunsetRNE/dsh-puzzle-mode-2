@@ -22,7 +22,15 @@
     "stop-semantics": {
       "puzzle": "不回退",
       "ig5": "只停动作"
+    },
+    "domain": {
+      "puzzle": "交付物内容与形态",
+      "ig5": "归无限五代"
+    },
+    "tool-shape": {
+      "puzzle": "按各自 schema 给",
+      "ig5": "既有工具 schema 不受"
     }
   },
-  "textProbeNotes": "文本层互校：三条分工规则的**可核关键词**（左右各一）。本仓 verify 检查：① 自己的 lib/index.js 政策文本含 puzzle 侧关键词；② 装了无限五代时，其 data/arbitration.mjs 含 ig5 侧关键词。对方做同样的事。任一侧改了文案而没同步这张表 → 两侧同时红。"
+  "textProbeNotes": "文本层互校：五条分工规则各记左右关键词（含域划分与工具形态）。两侧 verify 都读这张表、各自自证 + 互相核对。"
 }

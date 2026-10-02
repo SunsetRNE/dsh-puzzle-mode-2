@@ -1,3 +1,12 @@
+## v0.19.12（兼容层）
+
+**文本契约覆盖五条分工规则（补全剩下两条）**：`textProbes` 由 3 条扩到 5 条 ——
+新增 `domain`（本仓「交付物内容与形态」／无限五代「归无限五代」）与
+`tool-shape`（本仓「按各自 schema 给」／无限五代「既有工具 schema 不受」），
+加上原有的 `ask-quota` / `batch-first` / `stop-semantics`，五条分工条款全部可核。
+两侧判据同步把「覆盖三条」改成「覆盖五条」。实测：`npm run verify:cross` **21 通过 / 0 失败**，
+无限五代侧 `verify:arbitration` 同样 **21 通过 / 0 失败**。
+
 ## v0.19.11（兼容层）
 
 **文本规则也可核**：`compat.json` 增加 `textProbes` —— 三条分工规则（提问额度 / 批量优先 / 停下语义）
