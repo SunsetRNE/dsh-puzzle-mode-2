@@ -17,7 +17,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.19.5** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.19.6** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -28,7 +28,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.5
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.19.6
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -39,7 +39,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.19.5.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.5/dsh-puzzle-mode-0.19.5.tgz)
+[dsh-puzzle-mode-0.19.6.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.19.6/dsh-puzzle-mode-0.19.6.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -56,6 +56,42 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.19.6 · 性能：每次工具调用同步阻塞 127ms → 1.3µs
+
+用户反馈：**「装了插件速度变慢了不少」**。量下来是真的，而且根因不在某条业务逻辑，
+而在**钩子挂的位置**：
+
+`tools/pre-execute` 挂在**每一次工具调用**上，而它一路走到 `readState`——把工作区里
+**9 份主文档 + 全部模块文档**同步读一遍，再算健康性 / 条目合规 / 工作流 / 引用源码。
+**而这一整条链只为了回答一个问题**：「本会话绑定的项目是不是『只拼不写』模式」。
+算完的 99% 当场丢掉。实测 **127ms/次**（同步阻塞事件循环），20 次调用的回合 ≈ **2.5 秒**
+纯等待；**不绑项目的用户也在付这笔钱**（86ms/次）。
+
+四处改动：
+
+| # | 改动 | 为什么 |
+| --- | --- | --- |
+| 1 | 热路径只读 `readProjectMode()`（一份主文档的 front-matter） | 只回答「什么模式」，不碰健康性/模块/条目 |
+| 2 | `readTextCached()`，指纹 `mtimeMs + size` | 加 `size` 是因为 `mtime` 在部分文件系统上只有秒级粒度 |
+| 3 | 绑定记忆：**没有时间窗口**，命中时重新验证 | TTL 会留下「刚改绑读到旧的」窗口；验证则当场正确 |
+| 4 | 提示段与设置常量化 | `policyText` 每步重拼 6042 字符（2.1ms）；`readSettings` 每步读盘解析 |
+
+**失效点只有一处**：全仓仅 `docfs.atomicWrite` 有 `writeFileSync`，11 个写路径全部收口，
+所以不存在「某条路径忘了失效」。
+
+| 指标 | 改前 | 改后 |
+| --- | --- | --- |
+| 每次工具调用 | 127.3 ms | **1.3 µs** |
+| 每 step 提示段 | 2.143 ms | 0.603 ms |
+| 20 次调用的回合 | ≈ 2.59 s | ≈ 0.01 s |
+
+**行为逐字节不变**：拿 `git HEAD` 的原始代码与改后代码跑同一串操作（设置禁用/恢复 +
+init→写坑→写健康性→切模式→解绑→重绑），状态序列化后 JSON **逐字节一致**。
+
+**关键一条：没有缓存用户源码。** `source.js` 读项目源码仍走无缓存 `readText`——
+源码被 `edit` / `bash` 改，绕过 `atomicWrite`，缓存它会让审查报出**过期的行数**。
+只有拼图文档（写入全部收口）进缓存。
 
 ### v0.19.5 · 把提问写深：每题 3–6 个真岔路，每个配一句取舍
 
@@ -114,34 +150,9 @@ v0.19.4 只做了「**放开上限**」。用户看过后提了下一个要求�
 里**没有任何数量校验**，UI 走 `options.map(...)` 全渲染、卡片自带滚动。所以这两个数
 **只是提示给模型的软上限**——插件侧拦了反而会在核心调默认值时变成误报。
 
-### v0.19.3 · 返回体积改为 ∝ 本次改变了什么
-
-作者本人用这个插件做了一轮真实工作，一轮下来光工具返回烧掉约 **193KB**，
-而每步真正需要的确认信息不到 200 字符。回头一量，浪费是**结构性**的：
-
-| 缺陷 | 实测 |
-| --- | --- |
-| 写操作回吐**整份状态** | 7026 字符（`modules` 占 4936），实际需 ~200 → **浪费 35×** |
-| 同一句证据**重复 39 次** | 114 次出现、仅 12 条唯一；10 个模块的 `reasons` 11406 字符 → 去重后 585（**19.5×**） |
-| `inflation[].because` 是纯副本 | 6712 字符，逐条比对确认 100% 重复 |
-| 审查指令每轮重发 | `AUDIT_PROMPT` 2628 字符，而提示段里**已有一份同样的规则** |
-
-**根因是一条设计缺陷，不是某个字段写错**：返回体积 ∝ **项目规模**，
-而不是 ∝ **本次改变了什么**。拼图模式的项目就是靠模块数增长的——等于「越用越贵」。
-
-**修法**：写操作只回**回执**（改了什么 + 全局几个数）；证据抽成 `evidenceTable`
-去重表，各处只留下标；`inflation[].because` 删除；审查指令默认不回吐（`verbose:true` 可取回）。
-
-| 场景 | 改前 | 改后 | 省 |
-| --- | --- | --- | --- |
-| 一次写操作 | 7026 字符 | 1192 字符 | **83%** |
-| 一次 `op:audit`（实测响应） | 43KB | 28KB | **35%** |
-
-并把判据写进提示段防止复发：**返回体积应当 ∝ 本次改变了什么，而不是 ∝ 项目有多大**。
-
 ### 更早的版本
 
-v0.19.2 及更早（一直到 v0.9.0）的说明已挪到 **[CHANGELOG.md](CHANGELOG.md)**；
+v0.19.3 及更早（一直到 v0.9.0）的说明已挪到 **[CHANGELOG.md](CHANGELOG.md)**；
 每个版本的完整正文与验收判据见 [Releases](https://github.com/liancha22/dsh-puzzle-mode/releases)。
 
 ---
