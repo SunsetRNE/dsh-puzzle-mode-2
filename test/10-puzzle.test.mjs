@@ -32,6 +32,7 @@ import {
   auditOf,
   bindSession,
   boundProject,
+  boundProjects,
   createProject,
   defaultProjectName,
   dimensionRanking,
@@ -536,24 +537,45 @@ try {
     }
   })
 
-  check('会话绑定：一个会话只绑一个项目（绑新的就解绑旧的）', () => {
+  /**
+   * v7 起这条**换了契约**（用户裁定：一个会话同时操作几个项目）：
+   *   · `op:init` / 建项目 = **追加**绑定（建个项目不该抹掉别的绑定）；
+   *   · `op:bind` = **替换全部**绑定（模型说「就绑这一个」时才是它）。
+   * v6 及更早「一个会话只绑一个项目」那条不变量已被有意废除，所以旧断言换成这两条。
+   */
+  check('会话绑定：建第二个项目是**追加**绑定，不抹掉第一个（v7）', () => {
     const oneRoot = mkdtempSync(join(tmpdir(), 'puzzle-one-'))
     try {
       createProject(oneRoot, 'first', '第一个', ['m1'], MODE_PUZZLE_ONLY, 'sess-a')
       createProject(oneRoot, 'second', '第二个', ['m1'], MODE_PUZZLE_ONLY, 'sess-a')
-      assert.equal(boundProject(oneRoot, 'sess-a'), 'second', '同一会话只应留在最新绑定的项目上')
-      assert.deepEqual(readState(oneRoot, 'first').sessions, [], '旧项目上必须已解绑')
+      // 后建的成为当前项目（工具落点），但第一个仍然绑着——这是 v7 的核心变化。
+      assert.equal(boundProject(oneRoot, 'sess-a'), 'second', '新建的项目应成为当前项目')
+      assert.deepEqual(boundProjects(oneRoot, 'sess-a').sort(), ['first', 'second'], '建项目是追加绑定')
+      assert.deepEqual(readState(oneRoot, 'first').sessions, ['sess-a'], '旧项目上必须还绑着')
       assert.deepEqual(readState(oneRoot, 'second').sessions, ['sess-a'])
+      // 别的会话不受影响：`sess-b` 绑 first 与 `sess-a` 的绑定互不干扰。
       const moved = bindSession(oneRoot, 'first', 'sess-b')
       assert.equal(moved.ok, true)
       assert.deepEqual(moved.released, [], 'sess-b 本来没绑，不该解绑任何东西')
-      assert.equal(boundProject(oneRoot, 'sess-a'), 'second')
+      assert.equal(boundProject(oneRoot, 'sess-a'), 'second', 'sess-a 的当前项目不该被别人动')
       assert.equal(boundProject(oneRoot, 'sess-b'), 'first')
-      const moved2 = bindSession(oneRoot, 'second', 'sess-b')
+      assert.deepEqual(boundProjects(oneRoot, 'sess-a').sort(), ['first', 'second'])
+    } finally {
+      rmSync(oneRoot, { recursive: true, force: true })
+    }
+  })
+
+  check('会话绑定：op:bind 是**替换全部**绑定（改绑必须把旧项目摘掉）', () => {
+    const oneRoot = mkdtempSync(join(tmpdir(), 'puzzle-one-'))
+    try {
+      createProject(oneRoot, 'first', '第一个', ['m1'], MODE_PUZZLE_ONLY, 'sess-a')
+      createProject(oneRoot, 'second', '第二个', ['m1'], MODE_PUZZLE_ONLY, 'sess-a')
+      const moved2 = bindSession(oneRoot, 'second', 'sess-a')
       assert.equal(moved2.ok, true)
       assert.deepEqual(moved2.released, ['first'], '改绑必须把旧项目摘掉')
       assert.deepEqual(readState(oneRoot, 'first').sessions, [])
-      assert.deepEqual(readState(oneRoot, 'second').sessions, ['sess-a', 'sess-b'])
+      assert.deepEqual(readState(oneRoot, 'second').sessions, ['sess-a'])
+      assert.deepEqual(boundProjects(oneRoot, 'sess-a'), ['second'])
     } finally {
       rmSync(oneRoot, { recursive: true, force: true })
     }

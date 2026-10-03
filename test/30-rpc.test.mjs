@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { HEALTH_DIMENSIONS, PUZZLE_VERSION, SECTION_ORDER, boundProject, createProject, docVersion, readState } from '../lib/puzzle.js'
+import { HEALTH_DIMENSIONS, PUZZLE_VERSION, SECTION_ORDER, boundProject, boundProjects, createProject, docVersion, readState } from '../lib/puzzle.js'
 
 let host
 try {
@@ -413,27 +413,70 @@ try {
   }
 
   {
-    // op:init 自动绑定：并把自己从旧项目上摘掉（一个会话只绑一个）。
+    // op:init 自动绑定（v7）：**追加**绑定并设为当前，不再把旧项目摘掉。
     const tool = captureTool()
     const out = await tool.execute({ op: 'init', project: 'tool-made', modules: ['m1'], goal: '工具建的' }, { agent: { session: { id: 'session-ui' } } })
     assert.equal(out.ok, true)
     assert.equal(out.project, 'tool-made')
     assert.equal(out.bound, true)
-    assert.deepEqual(out.released, ['ui-created'], 'init 要把本会话从旧项目摘掉')
-    assert.deepEqual(readState(root, 'ui-created').sessions, [])
+    assert.deepEqual(out.released, [], 'v7：建项目是追加绑定，不该解绑旧项目')
+    assert.deepEqual(readState(root, 'ui-created').sessions, ['session-ui'], '旧项目必须还绑着')
     assert.deepEqual(readState(root, 'tool-made').sessions, ['session-ui'])
-    ok('op:init → 建项目并改绑本会话')
+    assert.deepEqual(boundProjects(root, 'session-ui').sort(), ['tool-made', 'ui-created'])
+    assert.equal(boundProject(root, 'session-ui'), 'tool-made', '新建的成为当前项目')
+    ok('op:init → 建项目并**追加**绑定本会话')
   }
 
   {
-    // op:unbind：解绑后回到空，且文档留着。
+    // op:current：在已绑项目之间切当前，不动绑定集合。
     const tool = captureTool()
     const exec = { agent: { session: { id: 'session-ui' } } }
-    assert.equal(boundProject(root, 'session-ui'), 'tool-made')
+    const out = await tool.execute({ op: 'current', project: 'ui-created' }, exec)
+    assert.equal(out.ok, true)
+    assert.equal(out.currentProject, 'ui-created')
+    assert.equal(boundProject(root, 'session-ui'), 'ui-created')
+    assert.deepEqual(boundProjects(root, 'session-ui').sort(), ['tool-made', 'ui-created'], '切当前不该解绑')
+    const back = await tool.execute({ op: 'current', project: 'tool-made' }, exec)
+    assert.equal(back.currentProject, 'tool-made')
+    ok('op:current → 只切当前项目，不动绑定集合')
+  }
+
+  {
+    // op:bindings：模型能看到「绑了哪几个、当前是哪个」。
+    const tool = captureTool()
+    const out = await tool.execute({ op: 'bindings' }, { agent: { session: { id: 'session-ui' } } })
+    assert.equal(out.ok, true)
+    assert.equal(out.count, 2)
+    assert.equal(out.currentProject, 'tool-made')
+    assert.deepEqual(out.bindings.map((item) => item.project).sort(), ['tool-made', 'ui-created'])
+    assert.equal(out.bindings.find((item) => item.project === 'tool-made').current, true)
+    assert.ok(typeof out.bindings[0].health === 'number', '绑定项要带健康性（模型据此选项目）')
+    assert.ok(typeof out.bindings[0].mode === 'string', '绑定项要带执行模式')
+    ok('op:bindings → 列出全部绑定与当前项目')
+  }
+
+  {
+    // op:unbind 带 project：只解那一个（v7 的面板每项 ×）。
+    const tool = captureTool()
+    const exec = { agent: { session: { id: 'session-ui' } } }
+    const out = await tool.execute({ op: 'unbind', project: 'tool-made' }, exec)
+    assert.equal(out.ok, true)
+    assert.equal(out.unboundProject, 'tool-made')
+    assert.deepEqual(out.released, ['tool-made'])
+    assert.deepEqual(boundProjects(root, 'session-ui'), ['ui-created'], '只解一个，别的不动')
+    assert.equal(out.currentProject, 'ui-created', '当前被解掉后剩下的必须补位')
+    ok('op:unbind 带 project → 只解一个绑定')
+  }
+
+  {
+    // op:unbind：不带 project 就是全解，且文档留着。
+    const tool = captureTool()
+    const exec = { agent: { session: { id: 'session-ui' } } }
+    assert.equal(boundProject(root, 'session-ui'), 'ui-created')
     const out = await tool.execute({ op: 'unbind' }, exec)
     assert.equal(out.ok, true)
     assert.equal(out.unbound, true)
-    assert.deepEqual(out.released, ['tool-made'])
+    assert.deepEqual(out.released, ['ui-created'])
     assert.equal(out.initialized, false, '解绑后应回到未绑定态')
     assert.equal(out.projectSource, 'none')
     assert.equal(boundProject(root, 'session-ui'), null)

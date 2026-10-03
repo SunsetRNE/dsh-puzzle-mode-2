@@ -306,6 +306,107 @@ assert.ok(!draftCalls.includes('SUBMIT-SHOULD-NOT-HAPPEN'), '绝不能自动提�
 
 console.log('ok   bundle 格式、两个 Slot 注册、图块详情、客观发现渲染、提问/审查模板（setDraft，不自动发送）均通过')
 
+/* ------------- 多绑定切换条（v7）：绑着几个就必须画几个胶囊 ------------- */
+
+/**
+ * 这条断言的由来（**回归护栏，不是形式主义**）：
+ * 我第一版把「只绑了一个」优化成一行纯文字（`bindings.length === 1 && unbound.length === 0`
+ * 时直接 return 文本），结果**单绑定是绝大多数情况** —— 等于切换条平时根本不存在，
+ * 用户当场反馈「我的切换绑定被搞没了」。所以这里把「只要绑着就得画出来」钉死：
+ * 单绑定要画，多绑定要画，当前项要高亮，`＋` 要在场。
+ */
+{
+  const multiLoaded = []
+  const multiRequests = []
+  const multiWindow = {
+    __ModuleLoader__: { load(entry) { multiLoaded.push(entry) } },
+    setInterval() { return 1 },
+    clearInterval() {},
+    addEventListener() {},
+    removeEventListener() {},
+  }
+  const multiFetch = (url, options) => {
+    const body = JSON.parse(options.body)
+    multiRequests.push(body)
+    let result
+    if (body.method === 'state') {
+      result = {
+        ok: true, initialized: true, projectRoot: '/tmp/ws3', projectDir: '/tmp/ws3/demo/拼图',
+        project: 'demo', mode: '只拼不写', health: 62, version: 7,
+        dimensions: {}, modules: [], findings: [],
+        // 两个绑定：当前是 demo。面板必须画出**两个**胶囊、且只有 demo 高亮。
+        bindings: [
+          { project: 'demo', current: true, mode: '只拼不写', health: 62, moduleCount: 3, initialized: true },
+          { project: 'second', current: false, mode: '写后再拼', health: 41, moduleCount: 5, initialized: true },
+        ],
+        currentProject: 'demo', bindingWarnThreshold: 8,
+      }
+    } else if (body.method === 'list') {
+      // 工作区里还有第三个（未绑定）→ `＋` 的候选。
+      result = { ok: true, projects: [{ name: 'demo', health: 62 }, { name: 'second', health: 41 }, { name: 'third', health: 10 }] }
+    } else {
+      result = { ok: true }
+    }
+    return Promise.resolve({ json: () => Promise.resolve({ ok: true, result }) })
+  }
+  new Function('window', 'document', 'fetch', source)(
+    multiWindow,
+    { createElement: () => ({ setAttribute() {}, textContent: '' }), head: { appendChild() {} }, body: {} },
+    multiFetch,
+  )
+  const multiMod = multiLoaded[0].factory((name) => {
+    if (name === 'react') return fakeReact
+    throw new Error('unexpected require: ' + name)
+  })
+  const multiRegistered = []
+  const multiSlots = {
+    inject(name, callback) { callback(); return () => {} },
+    register(options, component) { multiRegistered.push({ options, component }); return () => {} },
+  }
+  multiMod.apply({ get: (name) => (name === 'slots' ? multiSlots : undefined), effect: () => () => {} })
+  const multiButton = multiRegistered.find((row) => row.options.name === 'conversation.input.left')
+  const multiPanel = multiRegistered.find((row) => row.options.name === 'shell.overlay')
+  multiButton.component({ sessionId: 'session-multi', inputActions: { setDraft() {}, submit() {} } }).props.onClick()
+  await flush()
+  const multiTree = multiPanel.component({})
+
+  // 胶囊是 `<button class="dshpz-pill">`。要排除两类：`×`（里面的 span，class 含 pillx）
+  // 与 `＋`（class 是 `dshpz-pill dshpz-pill-plus`）——后者也带 pill，用整串精确匹配区分。
+  const pillNodes = findAll(multiTree, (node) => typeof node === 'object' && node.type === 'button'
+    && node.props !== undefined && node.props.className === 'dshpz-pill')
+  assert.equal(pillNodes.length, 2, '绑了两个项目就必须画两个胶囊（不是退化成一行文字）')
+  assert.deepEqual(pillNodes.map((node) => node.props['data-on']), ['1', '0'], '只有当前项目那个胶囊高亮')
+  assert.equal(pillNodes[0].props.title.includes('当前项目'), true, '当前胶囊要说明自己是当前')
+  const plusButton = findAll(multiTree, (node) => typeof node === 'object' && node.type === 'button'
+    && node.props !== undefined && typeof node.props.className === 'string'
+    && node.props.className.includes('dshpz-pill-plus'))
+  assert.equal(plusButton.length, 1, '要有个 ＋ 能再绑一个（工作区里还有未绑定的项目）')
+  assert.ok(findAll(multiTree, (node) => typeof node === 'string' && node.includes('当前项目「')).length >= 1,
+    '多绑定要说明当前是哪个 + 联动规则')
+
+  // 点另一个胶囊 → 发 method:current（**切当前**，不是改绑）。
+  const beforeCurrent = multiRequests.filter((item) => item.method === 'current').length
+  pillNodes[1].props.onClick()
+  await flush()
+  const currentReqs = multiRequests.filter((item) => item.method === 'current')
+  assert.equal(currentReqs.length, beforeCurrent + 1, '点胶囊要发 method:current')
+  assert.equal(currentReqs[currentReqs.length - 1].project, 'second')
+  assert.equal(multiRequests.some((item) => item.method === 'bind'), false, '切当前**不该**发 method:bind（那会改绑定集合）')
+
+  // `×` → 只解绑这一个。
+  const beforeUnbind = multiRequests.filter((item) => item.method === 'unbind').length
+  const xNode = findAll(multiTree, (node) => typeof node === 'object' && node.props !== undefined
+    && typeof node.props.className === 'string' && node.props.className.includes('dshpz-pillx'))
+  assert.equal(xNode.length, 2, '每个胶囊都要有个 ×')
+  xNode[1].props.onClick({ stopPropagation() {} })
+  await flush()
+  const unbindReqs = multiRequests.filter((item) => item.method === 'unbind')
+  assert.equal(unbindReqs.length, beforeUnbind + 1, '点 × 要发 method:unbind')
+  assert.equal(unbindReqs[unbindReqs.length - 1].project, 'second', '× 只解绑它自己那一个')
+
+  console.log('ok   多绑定切换条：绑几个画几个胶囊 / 当前高亮 / 点胶囊切当前 / × 只解一个 / ＋ 在场')
+}
+
 /* ------------- 空态：新会话默认空绑定 → 建项目 / 绑定已有项目 ------------- */
 
 // 第二次加载：让 state 返回 initialized:false，才能真正渲染空态分支。

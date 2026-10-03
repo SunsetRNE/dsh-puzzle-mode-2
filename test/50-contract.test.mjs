@@ -23,12 +23,14 @@
  * 这样「常量改了」与「契约改了」是同一件事，不存在两处各写一份再漂移的可能。
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   ASK_MAX_OPTIONS,
   ASK_MAX_QUESTIONS,
+  BINDING_WARN_THRESHOLD,
+  CURRENT_SESSION_FIELD,
   ENTRY_CAPS,
   ENTRY_LIMITS,
   HEALTH_DIMENSIONS,
@@ -44,9 +46,19 @@ import {
   PUZZLE_VERSION,
   SECTION_HEADINGS,
   SECTION_ORDER,
+  SESSION_FIELD,
   SOURCE_MARK,
   WORKFLOW_MAX_STEPS,
+  addBinding,
+  bindSession,
+  boundProject,
+  boundProjects,
   conflictDigest,
+  parseCurrentSessionList,
+  parseSessionList,
+  setCurrentProject,
+  unbindOne,
+  writeSessionList,
   measureWithoutMethod,
   parseWorkflowBlocks,
   readWorkflow,
@@ -59,6 +71,8 @@ import {
   updateMainSection,
   updateModuleSection,
 } from '../lib/puzzle.js'
+// 迁移函数不在 barrel 里（它是重建流程的内部步骤），契约测试直接引实现文件。
+import { migrateMainDoc } from '../lib/migrate.js'
 
 let passed = 0
 const failed = []
@@ -101,7 +115,129 @@ try {
   })
 
   check('契约锚·文档格式版本的字面值（升版本必须动这里）', () => {
-    assert.equal(PUZZLE_VERSION, 6, 'PUZZLE_VERSION 变化必须同步本文件与 CHANGELOG 的迁移说明')
+    assert.equal(PUZZLE_VERSION, 7, 'PUZZLE_VERSION 变化必须同步本文件与 CHANGELOG 的迁移说明')
+  })
+
+  check('契约锚·多绑定字段名（v7：一个会话可绑多个项目）', () => {
+    // 这两个字段名是**写进用户文档的**（front-matter 里就长这样），改名等于改格式。
+    assert.equal(SESSION_FIELD, '会话')
+    assert.equal(CURRENT_SESSION_FIELD, '当前会话')
+    assert.ok(BINDING_WARN_THRESHOLD > 1, '提醒阈值要是个能真的超过的数')
+  })
+
+  check('契约·v7 不变量：当前会话 ⊆ 会话（写盘时收口）', () => {
+    // 手工构造一份「当前会话里有、会话里没有」的 front-matter：写回时必须被裁掉。
+    // 这条不变量是「当前项目」语义的根——破了就会出现「当前项目其实没绑这个会话」，
+    // 表现是工具落在一个本会话根本没绑的项目上。
+    const text = [
+      '---',
+      'puzzle: 7',
+      '项目: inv',
+      '模式: 只拼不写',
+      '计划模块: []',
+      `会话: ${JSON.stringify(['s1', 's2'])}`,
+      `当前会话: ${JSON.stringify(['s2', 'ghost'])}`,
+      '更新时间: 2026-01-01 00:00:00',
+      '---',
+      '',
+      '# inv',
+      '',
+    ].join('\n')
+    const file = join(root, 'inv-main.md')
+    writeFileSync(file, text, 'utf8')
+    const written = writeSessionList(file, text, ['s1', 's2'], ['s2', 'ghost'])
+    assert.equal(written.ok, true)
+    const after = readFileSync(file, 'utf8')
+    const fields = parseFrontMatter(after).fields
+    assert.deepEqual(parseSessionList(fields), ['s1', 's2'])
+    assert.deepEqual(parseCurrentSessionList(fields), ['s2'], '当前会话必须是绑定的子集')
+  })
+
+  check('契约·v7 迁移：v6 老文档补「当前会话」且取绑定的第一个', () => {
+    // v6 及更早「一个会话只绑一个项目」，所以唯一那个绑定就是当前——迁移补出来的值
+    // 必须与原行为一致（这是「只改形状、不改语义」的判据）。
+    const text = [
+      '---',
+      'puzzle: 6',
+      '项目: old',
+      '模式: 只拼不写',
+      '计划模块: []',
+      `会话: ${JSON.stringify(['s-old'])}`,
+      '更新时间: 2026-01-01 00:00:00',
+      '---',
+      '',
+      '# old',
+      '',
+    ].join('\n')
+    const done = migrateMainDoc(text, 'old', [])
+    const fields = parseFrontMatter(done.text).fields
+    assert.equal(fields.puzzle, '7')
+    assert.deepEqual(parseCurrentSessionList(fields), ['s-old'], 'v6 的唯一绑定必须成为当前项目')
+  })
+
+  check('契约·v7 迁移幂等：已补过「当前会话」的文档第二次 0 改动', () => {
+    const text = [
+      '---',
+      'puzzle: 6',
+      '项目: old',
+      '模式: 只拼不写',
+      '计划模块: []',
+      `会话: ${JSON.stringify(['s-old'])}`,
+      '更新时间: 2026-01-01 00:00:00',
+      '---',
+      '',
+      '# old',
+      '',
+    ].join('\n')
+    const once = migrateMainDoc(text, 'old', [])
+    const twice = migrateMainDoc(once.text, 'old', [])
+    assert.deepEqual(twice.changes, [], '第二次必须 0 改动，否则「迁移」按钮每次都说有改动')
+  })
+
+  check('契约·多绑定：一个会话可同时绑多个项目，当前项目排第一', () => {
+    const many = join(root, 'many-root')
+    mkdirSync(join(many, 'aaa', PUZZLE_DIR), { recursive: true })
+    mkdirSync(join(many, 'bbb', PUZZLE_DIR), { recursive: true })
+    createProject(many, 'aaa', '', [], '只拼不写', 's-multi')
+    createProject(many, 'bbb', '', [], '只拼不写', 's-multi')
+    // 两个项目都绑了这个会话：这正是 v6 做不到、v7 放开的事。
+    assert.deepEqual(boundProjects(many, 's-multi').sort(), ['aaa', 'bbb'])
+    // 新建的第二个是当前 → 排第一，且 boundProject（工具落点）也是它。
+    assert.equal(boundProject(many, 's-multi'), 'bbb', '新建的项目应当成为当前项目')
+    setCurrentProject(many, 'aaa', 's-multi')
+    assert.equal(boundProject(many, 's-multi'), 'aaa', '切换当前之后工具落点必须跟着换')
+    // 切换只动「当前」，不动绑定集合。
+    assert.deepEqual(boundProjects(many, 's-multi').sort(), ['aaa', 'bbb'], '切当前不该解绑')
+  })
+
+  check('契约·多绑定：解绑一个不动另一个，且当前项目自动补位', () => {
+    const many = join(root, 'unb-root')
+    mkdirSync(join(many, 'aaa', PUZZLE_DIR), { recursive: true })
+    mkdirSync(join(many, 'bbb', PUZZLE_DIR), { recursive: true })
+    createProject(many, 'aaa', '', [], '只拼不写', 's-u')
+    createProject(many, 'bbb', '', [], '只拼不写', 's-u')
+    // 当前是 bbb（后建的）；把当前那个解掉，剩下的 aaa 必须自动成为当前。
+    const one = unbindOne(many, 'bbb', 's-u')
+    assert.equal(one.ok, true)
+    assert.deepEqual(boundProjects(many, 's-u'), ['aaa'])
+    assert.equal(one.current, 'aaa', '解绑当前项目后，剩下的绑定必须补位成当前')
+    assert.equal(boundProject(many, 's-u'), 'aaa', '不留「绑定还在、当前却没了」的状态')
+  })
+
+  check('契约·op:bind 仍是「替换全部绑定」（追加只走面板的 ＋）', () => {
+    const many = join(root, 'repl-root')
+    mkdirSync(join(many, 'aaa', PUZZLE_DIR), { recursive: true })
+    mkdirSync(join(many, 'bbb', PUZZLE_DIR), { recursive: true })
+    createProject(many, 'aaa', '', [], '只拼不写', 's-r')
+    createProject(many, 'bbb', '', [], '只拼不写', 's-r')
+    assert.deepEqual(boundProjects(many, 's-r').sort(), ['aaa', 'bbb'])
+    const bound = bindSession(many, 'aaa', 's-r')
+    assert.equal(bound.ok, true)
+    assert.deepEqual(bound.released, ['bbb'], 'op:bind 必须解绑别处')
+    assert.deepEqual(boundProjects(many, 's-r'), ['aaa'])
+    // 追加是另一条路：`addBinding` 只加不删。
+    addBinding(many, 'bbb', 's-r')
+    assert.deepEqual(boundProjects(many, 's-r').sort(), ['aaa', 'bbb'])
   })
 
   check('契约锚·模块文档小节名与顺序（字面）', () => {
