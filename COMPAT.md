@@ -46,3 +46,21 @@ npm run sync:upstream       # 看上游有没有新提交
 `SunsetRNE/dsh-infinite-gen-5` 侧仍记 `PZ_ORDER_FORK_DEFAULT = 10100`（见其 issue #1），
 而本仓/上游已是 **10120**（10100 与宿主内置 `WEB_SURFACE: 10100` 撞号，撞号时排序回退按段名比）。
 ig5 侧改到 10120 后，`npm run log:compat` 的结论应回到 `ok`。
+
+## 五、本仓怎么发版（fork 自己的线）
+
+本仓与上游**同名不同仓**，而上游带来的 `tools/release.sh` 里 `REPO` 是**写死上游**的 ——
+直接跑会把 Release 建到上游仓库（实测：token 无写权限 → HTTP 404；若有权限则会误发到别人的仓库）。
+本仓把它改成可覆盖（默认仍是上游，保持上游原行为），发版时显式指过来：
+
+```bash
+cd /root/S/dsh-puzzle-mode-2
+npm pack                                   # 产物 dsh-puzzle-mode-X.Y.Z.tgz
+RELEASE_REPO=SunsetRNE/dsh-puzzle-mode-2 GITHUB_TOKEN_FILE=<token 文件> bash tools/release.sh vX.Y.Z
+# 附件要单独传（脚本不做）：
+curl -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/gzip" \
+  --data-binary @/tmp/dsh-puzzle-mode-X.Y.Z.tgz \
+  "https://uploads.github.com/repos/SunsetRNE/dsh-puzzle-mode-2/releases/<id>/assets?name=dsh-puzzle-mode-X.Y.Z.tgz"
+```
+
+纪律：**token 不入库**（用 `GITHUB_TOKEN_FILE` 指过去，别把 token 或路径写进仓库）；发版前必过 `npm test` 与包内容门禁。

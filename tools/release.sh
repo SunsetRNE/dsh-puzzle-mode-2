@@ -21,7 +21,9 @@ set -euo pipefail
 TAG="${1:-}"
 NOTES="${2:-}"
 TOKEN_FILE="${GITHUB_TOKEN_FILE:-$HOME/.dsh/.github-token}"
-REPO="liancha22/dsh-puzzle-mode"
+# 本仓（兼容性复刻仓）与上游**同名不同仓**：直接跑本脚本会把 Release 建到**上游仓库**（实测：token 无写权限 → HTTP 404，
+# 若 token 有权限则会误发到别人的仓库）。所以仓库名改成可覆盖，默认仍是上游以保持上游脚本的原行为。
+REPO="${RELEASE_REPO:-liancha22/dsh-puzzle-mode}"
 SKIP_TESTS=0
 if [ "$NOTES" = "--skip-tests" ]; then
   SKIP_TESTS=1
