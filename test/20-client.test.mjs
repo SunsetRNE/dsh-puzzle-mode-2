@@ -15,7 +15,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ASK_MAX_OPTIONS, ASK_MAX_QUESTIONS, HEALTH_DIMENSIONS } from '../lib/puzzle.js'
+import { ASK_MAX_OPTIONS, ASK_MAX_QUESTIONS, ENTRY_CAPS, ENTRY_LIMITS, HEALTH_DIMENSIONS, WORKFLOW_NAME_LIMIT, WORKFLOW_STEP_LIMIT } from '../lib/puzzle.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 // 维度名**引常量**而不是写死（v0.19.8）：改维度只改 lib/constants.js，断言自动跟上。
@@ -151,6 +151,34 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   const bind = mod.bindTemplate('demo')
   assert.ok(bind.includes('op:bind'), '绑定模板要点名 op:bind')
   assert.ok(bind.includes('demo'), '绑定模板要带上项目名')
+}
+
+/* ------------------------ 迁移/重构模板（v0.20.5） ------------------------ */
+
+/**
+ * 用户原话：「迁移有没有改提示词了」——迁移/重构**本身就是一段提示词**
+ * （`refactorTemplate`，面板按钮把它填进输入框），而 v0.20.0 的 diff
+ * 从 `client.js` 第 343 行才开始，模板区一行没碰。
+ *
+ * 于是它自己与现行规格直接冲突：
+ *   1. 只写「每条必须带（源码: 文件:行）」——可 `## 工作流` **不在** `MAIN_ENTRY_SPEC` 里，
+ *      不要求出处。模型于是给工作流步骤**编行号**（同一段里还写着「不许编行号」）。
+ *   2. 只写「坑 20 字、其余主文档条目 50 字」——可工作流步骤的合法上限是
+ *      `WORKFLOW_STEP_LIMIT`（80）。模型会把**合法**步骤砍到 50 以内，
+ *      正是 v0.20.2 那个假发现的**镜像**（那次是插件拿 50 的尺子量 80 的步骤）。
+ */
+{
+  const text = mod.refactorTemplate('demo')
+  assert.ok(text.includes('## 工作流') || text.includes('工作流 例外'),
+    '迁移提示词必须点名工作流是例外，否则模型会拿条目尺子量流水线')
+  assert.ok(text.includes('不要求出处'), '迁移提示词必须写明工作流不要求（源码: …）')
+  assert.ok(text.includes(String(WORKFLOW_STEP_LIMIT)) && text.includes(String(WORKFLOW_NAME_LIMIT)),
+    '迁移提示词里的工作流尺子必须引常量（步骤 ' + WORKFLOW_STEP_LIMIT + ' / 名字 ' + WORKFLOW_NAME_LIMIT + '）')
+  // 条目上限也必须引常量：写死就会在改 constants.js 时过期。
+  assert.ok(text.includes(String(ENTRY_LIMITS.pit)), '坑的上限要引 ENTRY_LIMITS.pit')
+  assert.ok(text.includes(String(ENTRY_CAPS.pending)), '悬而未决条数要引 ENTRY_CAPS.pending')
+  // v7 形式：绑定不再是一对一，提示词不能还是 v6 口径。
+  assert.ok(!text.includes('一个会话只绑一个'), '提示词不得残留 v6 的一对一绑定口径')
 }
 
 /* ------------------------------ 注册契约 ------------------------------ */

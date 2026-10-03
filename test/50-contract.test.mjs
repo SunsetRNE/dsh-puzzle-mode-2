@@ -42,6 +42,7 @@ import {
   MODULE_DIR,
   MODULE_SECTION_HEADINGS,
   MODULE_SECTION_KEYS,
+  PANEL_LIMITS,
   PAUSE_OPTIONS,
   PAUSE_QUESTION,
   PUZZLE_DIR,
@@ -519,6 +520,79 @@ try {
     assert.equal(typeof PAUSE_QUESTION, 'string')
     assert.ok(PAUSE_QUESTION.length > 0)
     for (const option of PAUSE_OPTIONS) assert.ok(typeof option === 'string' && option.length > 0)
+  })
+
+  /**
+   * v0.20.5：面板提示词模板里的数字**必须**由宿主下发，不许在客户端再抄一份。
+   *
+   * 这是本项目反复踩的那类坑（「改一处即可」被违反）：模板原先各抄一遍数字，
+   * 改宿主上限时模板不跟随，于是**提示词把过期数字交给模型，模型照写，写入被拒**。
+   * 断言直接扫 `lib/client.js` 的源码文本——模板是运行时拼的字符串，
+   * 从外部拿不到「它有没有写死数字」这个事实。
+   */
+  check('契约·client 模板不得写死上限数字（一律走 limitsOf 下发）', () => {
+    const src = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+    const from = src.indexOf('function refactorTemplate')
+    const to = src.indexOf('共享 store')
+    assert.ok(from > 0 && to > from, '找不到模板区——文件结构变了，请同步这条断言')
+    const region = src.slice(from, to)
+    const offenders = []
+    for (const m of region.matchAll(/≤\s*\d+\s*字|最多\s*\d+\s*[步条问]|(?:坑|要点|详细记录)[^']{0,4}\d+\s*字/g)) offenders.push(m[0])
+    assert.deepEqual(offenders, [], '模板区写死了上限数字，改 constants.js 时它不会跟随：' + offenders.join(' / '))
+  })
+
+  /**
+   * v0.20.5：`FALLBACK_LIMITS`（首次数据到达前的兜底）必须与宿主 `PANEL_LIMITS` 相等。
+   *
+   * 两者漂移的后果是「面板刚打开时给出过期上限」——一样会骗到模型。
+   */
+  check('契约·client 的 FALLBACK_LIMITS 与宿主 PANEL_LIMITS 逐字段相等', () => {
+    const src = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+    const at = src.indexOf('var FALLBACK_LIMITS = ')
+    assert.ok(at > 0, '找不到 FALLBACK_LIMITS')
+    const start = src.indexOf('{', at)
+    let depth = 0
+    let end = start
+    for (let i = start; i < src.length; i++) {
+      if (src[i] === '{') depth++
+      else if (src[i] === '}') {
+        depth--
+        if (depth === 0) { end = i; break }
+      }
+    }
+    const fallback = new Function('return ' + src.slice(start, end + 1))()
+    assert.deepEqual(fallback, PANEL_LIMITS, 'FALLBACK_LIMITS 与 PANEL_LIMITS 不一致')
+  })
+
+  /**
+   * v0.20.5：提示段里**不许同时出现** v6 与 v7 两种绑定口径。
+   *
+   * 实际踩到过：`### 项目` 开头写着「一个会话只绑一个项目」，同一份提示段末尾的
+   * `### 会话与多绑定（v7）` 又写着「可以同时绑多个项目」——模型读到两条**相反**的规则，
+   * 而提示段是它每轮都看的东西。这条断言把「两说并存」变成一次可见的红。
+   */
+  check('契约·提示段不得同时出现「只绑一个项目」与「同时绑多个项目」', () => {
+    const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    const at = src.indexOf('const POLICY_BODY = [')
+    const end = src.indexOf('会话与项目定位', at)
+    assert.ok(at > 0 && end > at, '找不到 POLICY_BODY 区段——文件结构变了，请同步这条断言')
+    const policy = src.slice(at, end)
+    const one = policy.includes('一个会话只绑一个项目')
+    const many = policy.includes('一个会话可以同时绑多个项目')
+    assert.ok(!(one && many), '提示段同时给了两种绑定口径——模型会读到两条相反规则')
+    assert.ok(many, 'v7 起提示段必须写明「可以同时绑多个项目」')
+  })
+
+  /**
+   * v0.20.5：面板文案不许再说「单绑定不显示切换条」。
+   *
+   * 实际踩到过：面板写着单绑定「切换条不显示」，而 `bindingSwitcher` 的注释与实现
+   * 都明确「不做这个退化」（用户当场抓到过一次）。用户可见的假话优先级最高。
+   */
+  check('契约·面板不得声称单绑定不显示切换条（实际会画）', () => {
+    const src = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+    assert.ok(!src.includes('切换条不显示'), '面板文案与实现矛盾：单绑定其实会画胶囊')
+    assert.ok(!src.includes('不显示切换条'), '面板文案与实现矛盾：单绑定其实会画胶囊')
   })
 
   console.log(`\n${passed} 项通过${failed.length ? ` / ${failed.length} 项失败:` : ''}`)
