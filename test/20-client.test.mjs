@@ -320,6 +320,117 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   console.log('ok   执行模式：按下即亮（扣住回包也亮），不等回包')
 }
 
+/* -------- 切项目：面板不得沿用上一个项目的模式（v0.23.3） -------- */
+
+/**
+ * 用户报「执行模式怎么继承到下一个打开的面板了」。
+ *
+ * **不是数据被写串了**（宿主侧两个项目的 `模式:` 各写各的，单独验过），
+ * 而是**面板短暂地拿着上一个项目的值**：切项目时 `current` 的返回不带新项目的 `mode`，
+ * 而 `load()` 是异步的。实测：
+ *
+ *   ① 当前 A（只拼不写）  高亮 = 只拼不写
+ *   ② 在 A 点「边拼边写」  高亮 = 边拼边写
+ *   ③ 切到 B（load 未回）  高亮 = **边拼边写**  ← A 的模式，这就是「继承」
+ *   ④ load 已回            高亮 = 写后再拼      ← 最终才对
+ *
+ * 断言钉的是 **③**——即「扣住 state 回包」时的显示。不扣回包就测不到：
+ * `await` 之后 load 早已返回，显示已经自我纠正，把修复删掉照样绿（同类假绿，见上文）。
+ */
+{
+  const swReqs = []
+  const SW = {
+    A: { mode: '只拼不写', health: 60 },
+    B: { mode: '写后再拼', health: 70 },
+  }
+  let swCurrent = 'A'
+  const swState = (name) => ({
+    ok: true, initialized: true, project: name, mode: SW[name].mode, size: SIZE_MEDIUM,
+    health: SW[name].health, version: 7, dimensions: {}, modules: [], findings: [],
+    bindings: [
+      { project: 'A', current: swCurrent === 'A', mode: SW.A.mode, health: SW.A.health, moduleCount: 1, initialized: true },
+      { project: 'B', current: swCurrent === 'B', mode: SW.B.mode, health: SW.B.health, moduleCount: 1, initialized: true },
+    ],
+    currentProject: swCurrent, bindingWarnThreshold: 8,
+    limits: {
+      askQuestions: 10, askOptions: 10, entryLimits: ENTRY_LIMITS, entryCaps: capsOfSize(SIZE_MEDIUM),
+      workflowNameLimit: WORKFLOW_NAME_LIMIT, workflowStepLimit: WORKFLOW_STEP_LIMIT, workflowMaxSteps: 12,
+      bindingWarnThreshold: 8, sizeCaps: SIZE_CAPS, sizes: SIZES,
+    },
+  })
+  /** 扣住 `state` 的回包，用来观察「切完但还没重读」那一瞬。 */
+  let swHold = null
+  const swGate = () => {
+    let release
+    const p = new Promise((resolve) => { release = resolve })
+    swHold = { p, release }
+    return function close() { const h = swHold; swHold = null; h.release() }
+  }
+  const swWindow = {
+    __ModuleLoader__: { load(entry) { swReqs.push(entry) } },
+    setInterval() { return 1 }, clearInterval() {}, addEventListener() {}, removeEventListener() {},
+  }
+  const swFetch = (url, options) => {
+    const body = JSON.parse(options.body)
+    let result
+    if (body.method === 'state') result = swState(swCurrent)
+    else if (body.method === 'list') result = { ok: true, projects: [{ name: 'A' }, { name: 'B' }] }
+    else if (body.method === 'current') { swCurrent = body.project; result = swState(swCurrent) }
+    else if (body.method === 'mode') { SW[body.project].mode = body.mode; result = swState(body.project) }
+    else result = { ok: true }
+    const payload = { json: () => Promise.resolve({ ok: true, result }) }
+    return body.method === 'state' && swHold !== null ? swHold.p.then(() => payload) : Promise.resolve(payload)
+  }
+  new Function('window', 'document', 'fetch', source)(
+    swWindow,
+    { createElement: () => ({ setAttribute() {}, textContent: '' }), head: { appendChild() {} }, body: {} },
+    swFetch,
+  )
+  const swMod = swReqs[0].factory((name) => {
+    if (name === 'react') return fakeReact
+    throw new Error('unexpected require: ' + name)
+  })
+  const swRegs = []
+  const swSlots = { inject(name, cb) { cb(); return () => {} }, register(o, c) { swRegs.push({ o, c }); return () => {} } }
+  swMod.apply({ get: (n) => (n === 'slots' ? swSlots : undefined), effect: () => () => {} })
+  const swBtn = swRegs.find((r) => r.o.name === 'conversation.input.left')
+  const swPanel = swRegs.find((r) => r.o.name === 'shell.overlay')
+  swBtn.c({ sessionId: 'session-sw2', inputActions: { setDraft() {}, submit() {} } }).props.onClick()
+  await flush()
+
+  const swModeOn = (tree, label) => {
+    const btn = findAll(tree, (n) => typeof n === 'object' && n.type === 'button'
+      && Array.isArray(n.children) && n.children.includes(label))[0]
+    return btn === undefined ? null : btn.props['data-on']
+  }
+  const swPill = (tree, name) => findAll(tree, (n) => typeof n === 'object' && n.props !== undefined
+    && n.props.className === 'dshpz-pill' && findAll(n, (c) => c === name).length > 0)[0]
+
+  let swTree = swPanel.c({})
+  assert.equal(swModeOn(swTree, '只拼不写'), '1', '初始当前是 A，应高亮 A 的模式')
+
+  // 切到 B，**扣住 state 回包**，只排空微任务再同步读树 —— 这一瞬就是「继承」发生的时刻。
+  //
+  // ⚠️ 这里**不能用 `setTimeout(0)`**（同族假绿的第三个变体）：`markCurrentLocal` 是在
+  // `current` 请求的 `.then` 回调里跑的（**微任务**），而 `setTimeout` 是**宏任务**——
+  // 只 await 一个 `setTimeout` 的话，回调还没跑，看到的是「点了没反应」那一态。
+  // 排空微任务（`await Promise.resolve()`）才能停在「本地已切、state 未回」这一瞬。
+  const gate = swGate()
+  swPill(swTree, 'B').props.onClick()
+  for (let i = 0; i < 10; i += 1) await Promise.resolve()
+  swTree = swPanel.c({})
+  assert.equal(swModeOn(swTree, '写后再拼'), '1',
+    '切到 B 后必须立刻显示 **B 的模式**（扣住 state 回包时也要对）——这是用户报的「模式继承」')
+  assert.equal(swModeOn(swTree, '只拼不写'), '0', '不能还留着 A 的模式高亮')
+  gate()
+  await flush()
+
+  // 权威值回来后仍然是 B 的（本地填的不能反过来盖掉真值）。
+  swTree = swPanel.c({})
+  assert.equal(swModeOn(swTree, '写后再拼'), '1', 'load 回来后仍应是 B 的模式')
+  console.log('ok   切项目：面板立刻换成目标项目的模式（不沿用上一个项目）')
+}
+
 /* ---------------- bindings 两种形状（v0.21.0 加固） ---------------- */
 
 /**
