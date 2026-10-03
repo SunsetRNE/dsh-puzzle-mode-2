@@ -59,6 +59,9 @@ const arb = ig5Dir ? readFileSync(join(ig5Dir, 'data', 'arbitration.mjs'), 'utf8
 const num = (re) => Number((arb.match(re) || [])[1]);
 
 const cross = lastCounts('npm', ['run', '--silent', 'verify:cross'])
+// 判据没解析出来时**不要叫 drift** —— 那是「读不到数」而不是「两边不一致」。
+// 由来：v0.20.5 的 package.json 合并误删了 verify:cross 脚本，归档连出两条 `?/?` + drift 的假记录。
+const parseFailed = cross.pass === null
 // 注意：直接 node <脚本>，不要写成 `node --run <路径>` —— 首版就是那么写的，跑成了 npm 脚本，
 // 判据读成 null、结论误报 drift；这条注释留档。
 const ig5Arb = ig5Dir ? lastCounts('node', [join(ig5Dir, 'scripts', 'verify_arbitration.mjs')]) : null
@@ -79,7 +82,7 @@ const entry = {
   })(),
   verifyCross: cross,
   ig5Arbitration: ig5Dir ? ig5Arb : null,
-  verdict: cross.fail === 0 && (!ig5Dir || (ig5Arb && ig5Arb.fail === 0)) ? 'ok' : 'drift',
+  verdict: parseFailed ? 'parse-error' : cross.fail === 0 && (!ig5Dir || (ig5Arb && ig5Arb.fail === 0)) ? 'ok' : 'drift',
 }
 appendFileSync(LEDGER, JSON.stringify(entry) + '\n')
 console.log(JSON.stringify(entry))
