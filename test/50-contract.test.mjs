@@ -36,6 +36,7 @@ import {
   HEALTH_DIMENSIONS,
   HEALTH_HEADING,
   MAIN_FILE,
+  OLD_PREAMBLE_LINES,
   MODE_PUZZLE_ONLY,
   MODULE_DIR,
   MODULE_SECTION_HEADINGS,
@@ -453,6 +454,40 @@ try {
     const digest = conflictDigest('decided', ['毫不相干的决定'], ['另一件毫不相干的事'], ENTRY_CAPS.decided)
     assert.deepEqual(digest.existing, ['毫不相干的决定'], '不管像不像，旧条目都原样给出（由模型判）')
     assert.equal(conflictDigest('decided', [], ['x'], ENTRY_CAPS.decided), null, '没有旧条目就不打扰')
+  })
+
+  check('契约·迁移必须认得出**每一版**的旧说明行（漏一条那一版就永远修不好）', () => {
+    // 真 bug（本项目自己的文档中招）：v3 时代的说明行是「只有四节：…」，
+    // 而 `OLD_PREAMBLE_LINES` 里只列了「只有五节：…」。于是那份文档停在
+    // 「只有四节」、正文却早就是五节，跑多少次迁移都修不掉——文件头与正文自相矛盾。
+    // 判据是「整行完全一致才替换」，所以旧写法必须逐条列全。
+    const fourSections = '> 只有四节：模块索引 / 源码索引 / 工具索引 / 坑。决策与轮汇报在 `模块/` 下。'
+    assert.ok(OLD_PREAMBLE_LINES.has(fourSections), 'v3 的四节说明必须在旧说明表里，否则老文档永远修不好')
+    const text = [
+      '---',
+      'puzzle: 3',
+      '项目: old',
+      '模式: 只拼不写',
+      '计划模块: []',
+      '更新时间: 2026-01-01 00:00:00',
+      '---',
+      '',
+      '# old',
+      '',
+      fourSections,
+      '> 每条一句话 + 出处（源码: 文件:行）；查找方向固定为 主文档 → 源码。',
+      '> 项目健康性由模块文档的五维分数汇总得出，不在本文件手写总分。',
+      '',
+      '## 模块索引',
+      '- （尚未拆分模块）',
+      '',
+    ].join('\n')
+    const done = migrateMainDoc(text, 'old', [])
+    assert.ok(!done.text.includes('只有四节'), '迁移后不该还留着「只有四节」这句与正文矛盾的自述')
+    assert.ok(done.text.includes('只有五节'), '迁移后应换成当前版的说明行')
+    // 幂等：迁移过的文档再跑一次不该再报「更新说明」。
+    const twice = migrateMainDoc(done.text, 'old', [])
+    assert.ok(!twice.changes.some((c) => c.includes('说明')), '第二次不该再改说明行')
   })
 
   check('契约·固定收尾问文案与两个选项都在（引 PAUSE_QUESTION / PAUSE_OPTIONS）', () => {
