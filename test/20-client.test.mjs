@@ -153,6 +153,29 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   assert.ok(bind.includes('demo'), '绑定模板要带上项目名')
 }
 
+/* ---------------- bindings 两种形状（v0.21.0 加固） ---------------- */
+
+/**
+ * 宿主侧 `bindings` 有**两种形状**：`state` RPC 是对象数组（`{project, health…}`），
+ * `current` / `unbind` 是**字符串数组**。按字段取值的写法遇到字符串数组会得到一串
+ * `undefined`——`length` 看着还对，`all` 却被静默判成 `false`（迁移只作用于当前项目）。
+ *
+ * 这个坑在本仓出现过一次（v0.20.0：`...extra` 把对象数组盖成 `[undefined, undefined]`），
+ * 所以凡是按字段取 `data.bindings` 的地方都必须走 `boundNamesOf`。
+ */
+{
+  assert.equal(typeof mod.boundNamesOf, 'function', 'boundNamesOf 必须可测（导出）')
+  assert.deepEqual(mod.boundNamesOf({ bindings: [{ project: 'a' }, { project: 'b' }] }), ['a', 'b'],
+    '对象数组要取出 project')
+  assert.deepEqual(mod.boundNamesOf({ bindings: ['a', 'b'] }), ['a', 'b'],
+    '字符串数组也要认——否则会拿到 [undefined, undefined]')
+  assert.deepEqual(mod.boundNamesOf({ bindings: [] }), [], '空数组就是空')
+  assert.deepEqual(mod.boundNamesOf({}), [], '没有 bindings 字段给空数组，不给 undefined')
+  assert.deepEqual(mod.boundNamesOf(null), [], 'null 要安全')
+  // 混着来也要稳（防御性：宿主将来可能改形状）
+  assert.deepEqual(mod.boundNamesOf({ bindings: ['a', { project: 'b' }] }), ['a', 'b'], '两种形状混着也要认')
+}
+
 /* ---------------------- 接续会话模板（v0.21.0 ③） ---------------------- */
 
 /**
