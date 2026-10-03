@@ -48,3 +48,32 @@ node tools/log-compat.mjs --show --n=50   # 按时间读归档
 一行记录：时间 · 本仓版本 · 对方版本（不在场则记「不在场」）· 两侧段序声明 · 文本规则条数 ·
 两侧判据通过数 · 结论（`ok` / `drift`）。CI 里同样跑这一步（只打印，不落盘 —— CI 无推送权限），
 所以每次运行的这一行也留在 Actions 日志里。
+
+## 五、本仓怎么发版（fork 自己的线）
+
+本仓与上游**同名不同仓**：上游 `liancha22/dsh-puzzle-mode`，本仓 `SunsetRNE/dsh-puzzle-mode-2`。
+`tools/release.sh` 与 `tools/sync-releases.sh` 里的 `REPO` 默认仍是上游，直接跑会把 Release 建到**上游仓库**——
+两个脚本都改成读 `RELEASE_REPO`（默认值是上游，保持原行为），本仓发版时显式指过来：
+
+```bash
+cd /root/S/dsh-puzzle-mode-2
+# 1) 版本号（package.json）+ 发版说明（.github/release-vX.Y.Z.md，正文就是它）
+# 2) 门禁：npm test 必须全绿；语法与包内容顺手过一遍
+for f in lib/*.js; do node --check "$f" || echo "FAIL $f"; done
+npm pack --dry-run        # 期望只有 lib/ test/ cordis.patch.yml README.md UI.md PUBLISH.md LICENSE package.json
+# 3) 打 tag 并推（走 SSH；tag 已存在用 -f + push -f origin vX.Y.Z）
+git tag -f vX.Y.Z && git push origin vX.Y.Z
+# 4) 建 Release：repo 指本仓，token 走 GITHUB_TOKEN_FILE
+GITHUB_TOKEN_FILE=<你自己的 token 文件> RELEASE_REPO=SunsetRNE/dsh-puzzle-mode-2 bash tools/release.sh vX.Y.Z
+# 5) 传附件（release.sh 不会做，必须单独传）
+npm pack && curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/gzip" \
+  --data-binary @dsh-puzzle-mode-X.Y.Z.tgz \
+  "https://uploads.github.com/repos/SunsetRNE/dsh-puzzle-mode-2/releases/$RID/assets?name=dsh-puzzle-mode-X.Y.Z.tgz"
+```
+
+两条纪律：
+
+1. **token 内容不入库**：本机默认的 `~/.dsh/.github-token` 在本机**不存在**，实际可用的是另一个工作区里的 PAT（归属 `SunsetRNE`，`repo` 作用域）
+   —— 用 `GITHUB_TOKEN_FILE` 指过去即可，别把 token 或它的路径写进仓库。
+2. **附件的正文会过期**：`README.md` / `UI.md` / `PUBLISH.md` / `package.json` 都在 `files` 里，
+   改完文档要重传附件（先删旧附件再传，否则会出现 `-1` 后缀的同名附件）。
