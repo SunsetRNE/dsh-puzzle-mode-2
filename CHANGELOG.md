@@ -1,3 +1,28 @@
+## v0.20.5（兼容层 · 同步上游 v0.20.4 补丁）
+
+**上游 v0.20.4（`9a45664`）修的是「切换条塌陷」—— 已验证并把它的回归测试一并带进来。**
+
+- **上游修了什么**：`method:'state'` 的返回带 `bindings`（面板切换条的数据源），
+  而**所有写操作**（`mode` / `workflow` / `bind` / `current`）的返回都是 `summarize(readState(...))`，
+  一个都不带 `bindings`；面板把这些返回整体当成新 `data` → `data.bindings` 变 `undefined` →
+  **切换条当场塌成「只有当前项目」，最多等 8 秒轮询才恢复**。修法是客户端合并 `mergePanelData()`：
+  **新值没给这个字段就沿用旧值**（给了哪怕是空数组就用新的），合并 `bindings` / `currentProject` / `bindingWarnThreshold` 三个字段。
+- **本仓验证（本轮实测）**：
+
+  ```bash
+  git merge-base --is-ancestor 9a45664 HEAD && echo "✓ 已含 v0.20.4 修复"
+  grep -c mergePanelData lib/client.js                  # 6
+  node test/20-client.test.mjs; echo "退出码=$?"        # 0（含上游新增的 +78 行回归测试）
+  npm test >/dev/null 2>&1; echo "套餐退出码=$?"        # 0
+  node tools/verify-cross-plugin.mjs | tail -1          # 21 通过 / 0 失败
+  ```
+
+- **回归测试一并进来**：`test/20-client.test.mjs` 增加 78 行（9 处涉及 `mergePanelData` / `bindings`），
+  所以这条补丁**不靠肉眼** —— 上游给判据，本仓直接跑。
+- **兼容面未受影响**：段序可覆盖（`SECTION_ORDER_VALUE` = 10100）与六条分工条款照旧，握手 21/0。
+- **版本号**：本仓 **0.20.5**（上游 0.20.4 + 兼容面），避免与上游同号歧义。
+- 冲突仍是那两处机械文件（`package.json` / `CHANGELOG.md`），解法与 v0.20.4 段所记一致。
+
 ## v0.20.4（兼容层 · 同步上游两个 bug 修复）
 
 **上游的修复是"缺了就出事"的那种，本仓此前落后两个提交 —— 本轮 rebase 到上游 `a7fc197`（v0.20.3）补上。**
