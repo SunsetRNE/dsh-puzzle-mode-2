@@ -15,7 +15,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ASK_MAX_OPTIONS, ASK_MAX_QUESTIONS, ENTRY_CAPS, ENTRY_LIMITS, HEALTH_DIMENSIONS, WORKFLOW_NAME_LIMIT, WORKFLOW_STEP_LIMIT } from '../lib/puzzle.js'
+import { ASK_MAX_OPTIONS, ASK_MAX_QUESTIONS, ENTRY_CAPS, ENTRY_LIMITS, HEALTH_DIMENSIONS, SIZE_CAPS, SIZES, SIZE_LARGE, SIZE_MEDIUM, SIZE_SMALL, capsOfSize, WORKFLOW_NAME_LIMIT, WORKFLOW_STEP_LIMIT } from '../lib/puzzle.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 // 维度名**引常量**而不是写死（v0.19.8）：改维度只改 lib/constants.js，断言自动跟上。
@@ -153,6 +153,284 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   assert.ok(bind.includes('demo'), '绑定模板要带上项目名')
 }
 
+/* -------- 规模档位：切档要立刻亮，且「当前上限」必须跟着档位走 -------- */
+
+/**
+ * 用户报「项目规模切换是**假态**，而且**延时切换**」。两个症状两个根因，都在 `sizeBlock`：
+ *
+ * 1. **假态**：面板那行「当前上限：悬而未决 ≤x · 已定 ≤y …」原先读 `limits.sizeCaps`，
+ *    而那是「小/中/大**三档的整张表**」，不是当前这一档。于是 `caps.pending` 恒为
+ *    `undefined`，靠 `undefined === undefined ? 4 : …` 的兜底**永远显示中档数字**——
+ *    切到「大」显示「已定 ≤10」、切到「小」也显示「已定 ≤10」。真值在 `limits.entryCaps`
+ *    （= `capsOfSize(当前档)`）。**这条断言就是钉它**：三个档位必须渲染出三个不同的上限行。
+ * 2. **延时**：按钮只在**回包后**才变。已改成乐观更新——按下即翻档。
+ *
+ * 为什么断言「三个档渲染出三行不同的字」而不是断言内部字段：这个 bug 的特征是
+ * **字段名读错但界面照常渲染**（不报错、不空白，只是数字永远一样），
+ * 所以只有**渲染出来的文本**能抓住它。
+ */
+{
+  const szRequests = []
+  const szBindings = [{ project: 'aaa', current: true, mode: '只拼不写', health: 60, moduleCount: 2, initialized: true }]
+  const szState = (size) => ({
+    ok: true, initialized: true, projectRoot: '/tmp/ws7', projectDir: '/tmp/ws7/aaa/拼图',
+    project: 'aaa', mode: '只拼不写', health: 60, version: 7, dimensions: {}, modules: [], findings: [],
+    bindings: szBindings, currentProject: 'aaa', bindingWarnThreshold: 8,
+    size,
+    // 与宿主 `summarize` 同形：`limits` 里 `entryCaps` 是**当前档**，`sizeCaps` 是三档整表。
+    limits: {
+      askQuestions: 10, askOptions: 10,
+      entryLimits: ENTRY_LIMITS, entryCaps: capsOfSize(size),
+      workflowNameLimit: WORKFLOW_NAME_LIMIT, workflowStepLimit: WORKFLOW_STEP_LIMIT, workflowMaxSteps: 12,
+      bindingWarnThreshold: 8, sizeCaps: SIZE_CAPS, sizes: SIZES,
+    },
+  })
+  let szCurrent = SIZE_MEDIUM
+  /**
+   * **回包闸门**：扣住写操作的响应，用来真正验证「按下即亮」。
+   *
+   * 为什么必须扣住（我第一版没扣，结果是**假绿**）：`await setTimeout(0)` 是**宏任务**，
+   * 排在微任务链之后，所以 `fetch → json → then` 那三层 promise 早就跑完了——
+   * 断言看到的其实是**回包之后**的状态，把乐观更新整个删掉它照样绿。
+   * 扣住回包后，`onClick()` 返回时 store 里只可能是**乐观更新写进去的那份**。
+   */
+  let szHold = null
+  const szOpenGate = () => {
+    let release
+    const p = new Promise((resolve) => { release = resolve })
+    szHold = { p, release }
+    return function close() { const held = szHold; szHold = null; held.release() }
+  }
+  const szWindow = {
+    __ModuleLoader__: { load(entry) { szRequests.push(entry) } },
+    setInterval() { return 1 }, clearInterval() {}, addEventListener() {}, removeEventListener() {},
+  }
+  const szFetch = (url, options) => {
+    const body = JSON.parse(options.body)
+    let result
+    if (body.method === 'state') result = szState(szCurrent)
+    else if (body.method === 'list') result = { ok: true, projects: [{ name: 'aaa', health: 60 }] }
+    else if (body.method === 'size') { szCurrent = body.size; result = szState(body.size) }
+    // 写模式的回包按**真实 `summarize` 形状**给（含 size / limits / 绑定组），
+    // 否则这条用例会用一个比现实更穷的回包去测合并逻辑，测不出真问题。
+    else if (body.method === 'mode') result = Object.assign(szState(szCurrent), { mode: body.mode })
+    else result = { ok: true, mode: body.mode }
+    const payload = { json: () => Promise.resolve({ ok: true, result }) }
+    // 只有写操作会被闸门扣住（`state` 是面板启动时要用的，扣住会卡住整个渲染）。
+    const isWrite = body.method === 'size' || body.method === 'mode'
+    return isWrite && szHold !== null ? szHold.p.then(() => payload) : Promise.resolve(payload)
+  }
+  new Function('window', 'document', 'fetch', source)(
+    szWindow,
+    { createElement: () => ({ setAttribute() {}, textContent: '' }), head: { appendChild() {} }, body: {} },
+    szFetch,
+  )
+  const szMod = szRequests[0].factory((name) => {
+    if (name === 'react') return fakeReact
+    throw new Error('unexpected require: ' + name)
+  })
+  const szRegs = []
+  const szSlots = { inject(name, cb) { cb(); return () => {} }, register(o, c) { szRegs.push({ o, c }); return () => {} } }
+  szMod.apply({ get: (n) => (n === 'slots' ? szSlots : undefined), effect: () => () => {} })
+  const szBtn = szRegs.find((r) => r.o.name === 'conversation.input.left')
+  const szPanel = szRegs.find((r) => r.o.name === 'shell.overlay')
+  szBtn.c({ sessionId: 'session-size', inputActions: { setDraft() {}, submit() {} } }).props.onClick()
+  await flush()
+
+  /** 取那行「当前上限：…」的文本（唯一带「当前上限」的那个节点）。 */
+  const capsLine = (tree) => {
+    const node = findAll(tree, (n) => typeof n === 'object' && n.props !== undefined
+      && typeof n.children?.[0] === 'string' && n.children[0].indexOf('当前上限') === 0)
+    return node.length > 0 ? node[0].children[0] : null
+  }
+  /** 找到某个档位按钮（按钮里的 `span` 文本就是档位名）。 */
+  const sizeButton = (tree, label) => findAll(tree, (n) => typeof n === 'object' && n.type === 'button'
+    && findAll(n, (c) => c === label).length > 0)[0]
+
+  let szTree = szPanel.c({})
+  const midLine = capsLine(szTree)
+  assert.ok(midLine !== null, '规模区必须渲染「当前上限」那行')
+  // 引常量，别写死数字（本项目的「断言引常量」纪律）。
+  assert.ok(midLine.includes('已定 ≤' + SIZE_CAPS[SIZE_MEDIUM].decided),
+    '中档应显示中档上限，实际：' + midLine)
+
+  // 切到「大」：**扣住回包 + 同步读树**，此刻 store 里只可能是乐观更新写进去的那份。
+  const bigBtn = sizeButton(szTree, SIZE_LARGE)
+  assert.ok(bigBtn !== undefined, '要能找到「大」按钮')
+  let openGate = szOpenGate()
+  bigBtn.props.onClick()
+  /**
+   * ⚠️ **必须同步读树，不能 `await` 之后再读**（我第一版就是那么写的，结果假绿）。
+   *
+   * 这个假 React 的 `useEffect` 是**每次渲染都跑**的（真实 React 只在挂载/依赖变化时跑），
+   * 而面板的 effect 里有 `load(sessionId)`。所以只要 `await` 一个宏任务，
+   * 那次 `state` 拉取就会回来、把乐观更新**冲掉**——断言看到的其实是回包后的状态，
+   * 把乐观更新整个删掉也照样绿。
+   *
+   * 同步读则只可能读到 `onClick()` 里那次同步 `setState` 的结果；
+   * 回包还被闸门扣着，`state` 拉取是异步的（尚未落地）。这才是「按下即亮」的真判据。
+   */
+  szTree = szPanel.c({})
+  const bigLineNow = capsLine(szTree)
+  assert.ok(bigLineNow !== null && bigLineNow.includes('已定 ≤' + SIZE_CAPS[SIZE_LARGE].decided),
+    '点「大」必须**按下即亮**（回包被扣住时也要亮），实际：' + bigLineNow)
+  assert.ok(bigLineNow.includes('悬而未决 ≤' + SIZE_CAPS[SIZE_LARGE].pending),
+    '「大」档的悬而未决上限也要跟着走，实际：' + bigLineNow)
+  openGate()
+  await flush()
+
+  // 再切到「小」——三档必须给出**三个不同**的上限行（这就是「假态」的判据）。
+  szTree = szPanel.c({})
+  openGate = szOpenGate()
+  sizeButton(szTree, SIZE_SMALL).props.onClick()
+  szTree = szPanel.c({})
+  const smallLine = capsLine(szTree)
+  assert.ok(smallLine.includes('已定 ≤' + SIZE_CAPS[SIZE_SMALL].decided),
+    '「小」档要显示小档上限（回包被扣住时也要对），实际：' + smallLine)
+  assert.notEqual(smallLine, midLine, '「小」与「中」的上限行**不能一样**——一样就是读了 sizeCaps 的假态')
+  assert.notEqual(smallLine, bigLineNow, '「小」与「大」的上限行不能一样')
+  openGate()
+  await flush()
+  console.log('ok   规模档位：按下即翻档（扣住回包也亮），且「当前上限」跟着档位走（三档三样）')
+
+  /**
+   * 模式按钮的**延时**症状（用户报的「延时切换」）与规模同一处纪律：
+   * 按下必须立刻亮（`data-on='1'`），不能等回包。模式按钮把文本直接当子节点，
+   * 用 `data-on` 判高亮即可。
+   */
+  const modeOn = (tree, label) => {
+    const btn = findAll(tree, (n) => typeof n === 'object' && n.type === 'button'
+      && Array.isArray(n.children) && n.children.includes(label))[0]
+    return btn === undefined ? null : btn.props['data-on']
+  }
+  szTree = szPanel.c({})
+  assert.equal(modeOn(szTree, '只拼不写'), '1', '初始应高亮宿主给的模式')
+  const writeAfterBtn = findAll(szTree, (n) => typeof n === 'object' && n.type === 'button'
+    && Array.isArray(n.children) && n.children.includes('写后再拼'))[0]
+  assert.ok(writeAfterBtn !== undefined, '要能找到「写后再拼」按钮')
+  // 同样**扣住回包 + 同步读树**：不这么做的话，await 之后那次 `state` 拉取已经把
+  // 乐观更新冲掉了，把乐观更新删掉断言照样绿（第一版就是这么假绿的）。
+  const modeGate = szOpenGate()
+  writeAfterBtn.props.onClick()
+  szTree = szPanel.c({})
+  assert.equal(modeOn(szTree, '写后再拼'), '1', '点模式必须**按下即亮**（扣住回包也亮）——用户报的「延时切换」')
+  assert.equal(modeOn(szTree, '只拼不写'), '0', '旧模式的高亮要同时撤掉')
+  modeGate()
+  await flush()
+  console.log('ok   执行模式：按下即亮（扣住回包也亮），不等回包')
+}
+
+/* -------- 切项目：面板不得沿用上一个项目的模式（v0.23.3） -------- */
+
+/**
+ * 用户报「执行模式怎么继承到下一个打开的面板了」。
+ *
+ * **不是数据被写串了**（宿主侧两个项目的 `模式:` 各写各的，单独验过），
+ * 而是**面板短暂地拿着上一个项目的值**：切项目时 `current` 的返回不带新项目的 `mode`，
+ * 而 `load()` 是异步的。实测：
+ *
+ *   ① 当前 A（只拼不写）  高亮 = 只拼不写
+ *   ② 在 A 点「边拼边写」  高亮 = 边拼边写
+ *   ③ 切到 B（load 未回）  高亮 = **边拼边写**  ← A 的模式，这就是「继承」
+ *   ④ load 已回            高亮 = 写后再拼      ← 最终才对
+ *
+ * 断言钉的是 **③**——即「扣住 state 回包」时的显示。不扣回包就测不到：
+ * `await` 之后 load 早已返回，显示已经自我纠正，把修复删掉照样绿（同类假绿，见上文）。
+ */
+{
+  const swReqs = []
+  const SW = {
+    A: { mode: '只拼不写', health: 60 },
+    B: { mode: '写后再拼', health: 70 },
+  }
+  let swCurrent = 'A'
+  const swState = (name) => ({
+    ok: true, initialized: true, project: name, mode: SW[name].mode, size: SIZE_MEDIUM,
+    health: SW[name].health, version: 7, dimensions: {}, modules: [], findings: [],
+    bindings: [
+      { project: 'A', current: swCurrent === 'A', mode: SW.A.mode, health: SW.A.health, moduleCount: 1, initialized: true },
+      { project: 'B', current: swCurrent === 'B', mode: SW.B.mode, health: SW.B.health, moduleCount: 1, initialized: true },
+    ],
+    currentProject: swCurrent, bindingWarnThreshold: 8,
+    limits: {
+      askQuestions: 10, askOptions: 10, entryLimits: ENTRY_LIMITS, entryCaps: capsOfSize(SIZE_MEDIUM),
+      workflowNameLimit: WORKFLOW_NAME_LIMIT, workflowStepLimit: WORKFLOW_STEP_LIMIT, workflowMaxSteps: 12,
+      bindingWarnThreshold: 8, sizeCaps: SIZE_CAPS, sizes: SIZES,
+    },
+  })
+  /** 扣住 `state` 的回包，用来观察「切完但还没重读」那一瞬。 */
+  let swHold = null
+  const swGate = () => {
+    let release
+    const p = new Promise((resolve) => { release = resolve })
+    swHold = { p, release }
+    return function close() { const h = swHold; swHold = null; h.release() }
+  }
+  const swWindow = {
+    __ModuleLoader__: { load(entry) { swReqs.push(entry) } },
+    setInterval() { return 1 }, clearInterval() {}, addEventListener() {}, removeEventListener() {},
+  }
+  const swFetch = (url, options) => {
+    const body = JSON.parse(options.body)
+    let result
+    if (body.method === 'state') result = swState(swCurrent)
+    else if (body.method === 'list') result = { ok: true, projects: [{ name: 'A' }, { name: 'B' }] }
+    else if (body.method === 'current') { swCurrent = body.project; result = swState(swCurrent) }
+    else if (body.method === 'mode') { SW[body.project].mode = body.mode; result = swState(body.project) }
+    else result = { ok: true }
+    const payload = { json: () => Promise.resolve({ ok: true, result }) }
+    return body.method === 'state' && swHold !== null ? swHold.p.then(() => payload) : Promise.resolve(payload)
+  }
+  new Function('window', 'document', 'fetch', source)(
+    swWindow,
+    { createElement: () => ({ setAttribute() {}, textContent: '' }), head: { appendChild() {} }, body: {} },
+    swFetch,
+  )
+  const swMod = swReqs[0].factory((name) => {
+    if (name === 'react') return fakeReact
+    throw new Error('unexpected require: ' + name)
+  })
+  const swRegs = []
+  const swSlots = { inject(name, cb) { cb(); return () => {} }, register(o, c) { swRegs.push({ o, c }); return () => {} } }
+  swMod.apply({ get: (n) => (n === 'slots' ? swSlots : undefined), effect: () => () => {} })
+  const swBtn = swRegs.find((r) => r.o.name === 'conversation.input.left')
+  const swPanel = swRegs.find((r) => r.o.name === 'shell.overlay')
+  swBtn.c({ sessionId: 'session-sw2', inputActions: { setDraft() {}, submit() {} } }).props.onClick()
+  await flush()
+
+  const swModeOn = (tree, label) => {
+    const btn = findAll(tree, (n) => typeof n === 'object' && n.type === 'button'
+      && Array.isArray(n.children) && n.children.includes(label))[0]
+    return btn === undefined ? null : btn.props['data-on']
+  }
+  const swPill = (tree, name) => findAll(tree, (n) => typeof n === 'object' && n.props !== undefined
+    && n.props.className === 'dshpz-pill' && findAll(n, (c) => c === name).length > 0)[0]
+
+  let swTree = swPanel.c({})
+  assert.equal(swModeOn(swTree, '只拼不写'), '1', '初始当前是 A，应高亮 A 的模式')
+
+  // 切到 B，**扣住 state 回包**，只排空微任务再同步读树 —— 这一瞬就是「继承」发生的时刻。
+  //
+  // ⚠️ 这里**不能用 `setTimeout(0)`**（同族假绿的第三个变体）：`markCurrentLocal` 是在
+  // `current` 请求的 `.then` 回调里跑的（**微任务**），而 `setTimeout` 是**宏任务**——
+  // 只 await 一个 `setTimeout` 的话，回调还没跑，看到的是「点了没反应」那一态。
+  // 排空微任务（`await Promise.resolve()`）才能停在「本地已切、state 未回」这一瞬。
+  const gate = swGate()
+  swPill(swTree, 'B').props.onClick()
+  for (let i = 0; i < 10; i += 1) await Promise.resolve()
+  swTree = swPanel.c({})
+  assert.equal(swModeOn(swTree, '写后再拼'), '1',
+    '切到 B 后必须立刻显示 **B 的模式**（扣住 state 回包时也要对）——这是用户报的「模式继承」')
+  assert.equal(swModeOn(swTree, '只拼不写'), '0', '不能还留着 A 的模式高亮')
+  gate()
+  await flush()
+
+  // 权威值回来后仍然是 B 的（本地填的不能反过来盖掉真值）。
+  swTree = swPanel.c({})
+  assert.equal(swModeOn(swTree, '写后再拼'), '1', 'load 回来后仍应是 B 的模式')
+  console.log('ok   切项目：面板立刻换成目标项目的模式（不沿用上一个项目）')
+}
+
 /* ---------------- bindings 两种形状（v0.21.0 加固） ---------------- */
 
 /**
@@ -181,9 +459,12 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
 /**
  * 用户原话：「改接续会话提示词，直接让其接上一个会话干的活就行」，
  * 并确认「不是有什么看审查的段吗，把那个删掉」——即去掉要求它汇报「最弱的一维」。
+ * 第三次裁定（v0.24.1）：「把接续会话里的分析代码删了吧，这种事交给专门的审查就行了」
+ * ——再去掉「结合代码与文档的当前状态判断进度」。
  *
- * 为什么该删：接续会话的读者是**干活的人**，不是评审。让它先报五维最弱项，
- * 等于把「继续做」变成「先做一轮评估」，离题且费上下文。
+ * 为什么该删：接续会话的读者是**干活的人**，不是评审。让它先报五维最弱项、
+ * 或者自己翻代码推进度，都是把「继续做」变成「先做一轮评估」——后者更贵，
+ * 因为它要真的把源码读进来。进度该由 `op:audit` 的客观发现给（专门的审查）。
  */
 {
   const text = mod.resumeTemplate('demo', '/w/demo/拼图', '/w', null, ['demo'])
@@ -191,11 +472,18 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   assert.ok(text.includes('不要重新问我需求'), '要明确不必重新问需求')
   assert.ok(!text.includes('最弱的一维'), '「最弱一维」那段按用户要求删掉')
   assert.ok(!/审查/.test(text), '接续会话不该提审查')
+  // v0.24.1：不再要求模型自己分析代码推进度
+  assert.ok(!text.includes('结合代码与文档'), '不该要求「结合代码与文档的当前状态」自己推')
+  assert.ok(!text.includes('空壳 / TODO'), '不该要求自己分辨「哪些还是空壳 / TODO」')
+  // 但「不要全仓搜」这条护栏必须留着——删了反而更容易乱翻
+  assert.ok(text.includes('不要全仓搜'), '要保留「按源码索引跳、不要全仓搜」的护栏')
+  assert.ok(text.includes('不要从头重做'), '「不要从头重做」这句要保留')
   // 多绑定：列出全部绑定项目，并说明接续是全局动作（用户裁定 ②）
   const many = mod.resumeTemplate('demo', '/w/demo/拼图', '/w', null, ['demo', 'other', 'third'])
   assert.ok(many.includes('other') && many.includes('third'), '多绑定时要列出全部绑定项目')
   assert.ok(many.includes('全局动作'), '要说清接续是全局动作，别只接当前项目')
   assert.ok(!many.includes('最弱的一维'), '多绑定版本同样不该有「最弱一维」')
+  assert.ok(!many.includes('逐个判断进度'), '多绑定版本也不该要求逐个「判断进度」')
   // 单绑定不该冒出多绑定那段（否则是噪音）
   assert.ok(!text.includes('全局动作'), '单绑定时不该有多绑定提示')
 }
@@ -692,6 +980,17 @@ await flush()
 const emptyTree = emptyPanel.component({})
 assert.ok(emptyTree !== null, '空态也要渲染面板')
 assert.ok(findAll(emptyTree, (node) => typeof node === 'string' && node.includes('不会自动占用')).length >= 1, '空态要说清不会自动占用别人的项目')
+// v0.24.1（用户裁定「中间的白色大块占位删了，没用」）：那块虚线占位卡要真删掉。
+// 它跟顶部副标题「本会话未绑定项目」重复，又占着中栏最值钱的位置。
+// **但信息不能一起删**——上面那条「不会自动占用」的断言仍须通过，所以是降级成一行提示。
+{
+  const card = findAll(emptyTree, (node) => typeof node === 'object' && node !== null && node.props !== undefined && node.props.className === 'dshpz-empty')
+  assert.equal(card.length, 0, '空态中栏不该再有虚线占位卡（dshpz-empty）')
+  const cardIcon = findAll(emptyTree, (node) => typeof node === 'object' && node !== null && node.props !== undefined && node.props.className === 'dshpz-emptyicon')
+  assert.equal(cardIcon.length, 0, '占位卡的图标要一起删')
+  const cardTitle = findAll(emptyTree, (node) => typeof node === 'object' && node !== null && node.props !== undefined && node.props.className === 'dshpz-emptytitle')
+  assert.equal(cardTitle.length, 0, '占位卡的标题（与副标题重复）要一起删')
+}
 const emptyButtons = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'button' && node.props !== undefined && typeof node.props.onClick === 'function')
 const quickButton = emptyButtons.find((node) => Array.isArray(node.children) && node.children.some((child) => child === '快速建空壳'))
 const interviewButton = emptyButtons.find((node) => Array.isArray(node.children) && node.children.some((child) => child === '采访后再建'))

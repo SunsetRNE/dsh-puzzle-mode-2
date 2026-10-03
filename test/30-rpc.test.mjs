@@ -8,7 +8,7 @@
  * 裸目录里这一组无法运行，此时**明确跳过**并说明原因，而不是抛 ERR_MODULE_NOT_FOUND。
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HEALTH_DIMENSIONS, PUZZLE_VERSION, SECTION_ORDER, boundProject, boundProjects, createProject, docVersion, readState } from '../lib/puzzle.js'
@@ -186,6 +186,35 @@ try {
     const out = await call(handler, { body: JSON.stringify({ method: 'mode', sessionId: 'session-x', mode: '乱写' }) })
     assert.equal(out.status, 400)
     ok('未知 mode → 400')
+  }
+
+  {
+    // 规模档位：面板三颗按钮走这条。写进主文档 front-matter 的 `规模:` 并回整份 state。
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'size', sessionId: 'session-x', project: 'demo', size: '大' }) })
+    assert.equal(out.body.ok, true)
+    assert.equal(out.body.result.size, '大', 'state 里要带上规模，面板靠它高亮当前档')
+    assert.equal(readState(root, 'demo').size, '大', '要真的写进主文档')
+    ok('size → 写回主文档并返回新状态')
+  }
+
+  {
+    // 中档是默认值：写「中」应当把 `规模:` 那一行**删掉**（它是噪音），读回来仍是「中」。
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'size', sessionId: 'session-x', project: 'demo', size: '中' }) })
+    assert.equal(out.body.ok, true)
+    assert.equal(out.body.result.size, '中')
+    const raw = readFileSync(join(root, 'demo', '拼图', '主文档.md'), 'utf8')
+    assert.ok(!raw.includes('规模:'), '中档是默认值，不该在 front-matter 里留这一行')
+    assert.equal(readState(root, 'demo').size, '中', '不写这一行时读回来必须是「中」')
+    ok('size 中 → 删掉那一行（默认值不留噪音），读回来仍是中')
+  }
+
+  {
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'size', sessionId: 'session-x', project: 'demo', size: '巨大' }) })
+    assert.equal(out.body.ok, false)
+    ok('未知 size → ok:false（不 400，面板按错误文案显示）')
   }
 
   {
@@ -610,6 +639,55 @@ try {
       assert.ok(Array.isArray(item.entries), '每条要带目录内容当证据')
     }
     ok('RPC scan → 给出没有拼图文档的候选目录')
+  }
+
+  {
+    /**
+     * 写操作必须**回一份绑定组**——这是「点了模式又自己弹回去」的根因，也是
+     * 「切着切着胶囊没了」那条客户端合并的**上游修法**。
+     *
+     * 为什么这条必须**驱动真实 RPC 路由**、而不能只测 `bindingPanel` 纯函数：
+     * 这个 bug 的本质是**接线断了**——`bindingPanel` 自己怎么写都对，
+     * 错在 `mode` / `size` / `current` 这几个分支**根本没调它**（返回只有 `summarize`，
+     * 里面没有 `bindings`）。纯函数断言全绿也照漏（pit: 守卫只测纯函数会漏接线断开）。
+     * 所以这里断言的是**返回体里真有 `bindings`，且值是新的**。
+     */
+    const handler = captureRoute()
+    createProject(root, 'wb-a', '目标', ['m1'], '只拼不写', 'session-writeback')
+    createProject(root, 'wb-b', '目标', ['m1'], '只拼不写', 'session-writeback')
+    assert.equal(boundProjects(root, 'session-writeback').length, 2, '取证：这条会话确实绑了两个项目')
+
+    const before = await call(handler, { body: JSON.stringify({ method: 'state', sessionId: 'session-writeback' }) })
+    assert.ok(Array.isArray(before.body.result.bindings), 'state 本来就有绑定组（对照基线）')
+
+    // ① 写模式：面板胶囊的 title 直接渲染 `item.mode`，回旧值就是「点了又弹回去」。
+    const wrote = await call(handler, {
+      body: JSON.stringify({ method: 'mode', sessionId: 'session-writeback', project: 'wb-a', mode: '边拼边写' }),
+    })
+    assert.equal(wrote.body.result.mode, '边拼边写')
+    assert.ok(Array.isArray(wrote.body.result.bindings),
+      '写模式必须回绑定组（缺了客户端只能沿用旧数组 → 胶囊停在改动前的模式）')
+    assert.equal(wrote.body.result.bindings.length, 2, '绑定组要完整，不能只剩当前项目')
+    assert.equal(wrote.body.result.bindings.find((item) => item.project === 'wb-a').mode, '边拼边写',
+      '绑定组里那一项必须是**新**模式——这正是「点了又自己弹回去」看到的字段')
+
+    // ② 写规模：同样要回绑定组（与 mode 同形，别只修一处）。
+    const sized = await call(handler, {
+      body: JSON.stringify({ method: 'size', sessionId: 'session-writeback', project: 'wb-a', size: '大' }),
+    })
+    assert.ok(Array.isArray(sized.body.result.bindings), '写规模也要回绑定组')
+
+    // ③ 切当前：`current` 只动「当前是哪个」，绑定集合没变——正因如此它更要自己给真值，
+    //    否则客户端只能靠 `markCurrentLocal` 那个**自认没有断言**的本地兜底。
+    const moved = await call(handler, {
+      body: JSON.stringify({ method: 'current', sessionId: 'session-writeback', project: 'wb-b' }),
+    })
+    assert.ok(Array.isArray(moved.body.result.bindings), '切当前也要回绑定组')
+    assert.equal(moved.body.result.currentProject, 'wb-b')
+    assert.equal(moved.body.result.bindings[0].project, 'wb-b', '第一个就是当前（不变量）')
+    assert.equal(moved.body.result.bindings.find((item) => item.project === 'wb-b').current, true,
+      '当前项标记要落在新切过去的那个项目上')
+    ok('RPC 写操作（mode / size / current）→ 都回完整绑定组且值是新的')
   }
 
   console.log(`\n${passed} 项通过`)

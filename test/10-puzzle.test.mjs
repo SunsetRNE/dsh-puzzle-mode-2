@@ -30,6 +30,7 @@ import {
   scanUnpuzzled,
   SECTION_HEADINGS,
   SECTION_ORDER,
+  SIZE_LARGE,
   MODULE_SECTION_HEADINGS,
   SESSION_FIELD,
   auditOf,
@@ -50,6 +51,11 @@ import {
   readState,
   sectionCounts,
   setMode,
+  setSize,
+  setSourceRoot,
+  sizeOfProject,
+  writeSessionList,
+  writeWorkflowDoc,
   slugify,
   summarize,
   PUZZLE_VERSION,
@@ -886,6 +892,48 @@ try {
       assert.equal(rebuildProject(root2, 'nope', true).ok, false)
     } finally {
       rmSync(root2, { recursive: true, force: true })
+    }
+  })
+
+  /* -------- 规模档位必须在所有重写 front-matter 的路径上被透传（v0.23.3） -------- */
+
+  /**
+   * 真实事故（本仓自己的数据被删）：`updateMainSection` 重写 front-matter 时
+   * **漏透传 `规模:`**，于是「追加一条坑」把 `规模: 大` 抹掉 → 下次读按**中档** →
+   * 中档的 `pit` 上限更严 → **下一次写入静默删掉超出的条目**。
+   * 实测代价：主文档「坑」149 条被砍到 60 条，**丢了 93 条**（后按 dropped 原文恢复）。
+   *
+   * 同一形状的坑在本仓已出现多次（`setMainFields` 的注释里就写着这个后果），
+   * 所以这里**把每条重写路径都过一遍**，而不是只测踩到的那一条。
+   */
+  check('规模档位在所有重写 front-matter 的路径上都被透传', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'size-preserve-'))
+    try {
+      createProject(dir, 'p', '目标', ['m1'], MODE_PUZZLE_ONLY, 'sess')
+      setSize(dir, 'p', SIZE_LARGE)
+      assert.equal(sizeOfProject(dir, 'p'), SIZE_LARGE, '取证：起始档位是「大」')
+      const mainDoc = join(dir, 'p', PUZZLE_DIR, MAIN_FILE)
+      const read = () => readFileSync(mainDoc, 'utf8')
+
+      const paths = [
+        ['op:main 写坑', () => updateMainSection(dir, 'p', 'pit', '- 一条坑（源码: lib/a.js:1）', true)],
+        ['op:main 写工作流', () => updateMainSection(dir, 'p', 'workflow', '### 流程\n- 步骤一', true)],
+        ['op:module 写模块', () => updateModuleSection(dir, 'p', 'm1', 'points', '- 一个要点（源码: lib/a.js:1）', true)],
+        ['改模式', () => setMode(dir, 'p', MODE_PUZZLE_ONLY)],
+        ['改源码根', () => setSourceRoot(dir, 'p', '/tmp')],
+        ['写会话绑定', () => writeSessionList(mainDoc, read(), ['sess', 'sess2'], ['sess'])],
+        ['写工作流归档', () => writeWorkflowDoc(mainDoc, read(), [], [])],
+      ]
+      for (const [label, run] of paths) {
+        const r = run()
+        assert.notEqual(r && r.ok, false, `「${label}」本身应成功：${r && r.error}`)
+        assert.equal(sizeOfProject(dir, 'p'), SIZE_LARGE,
+          `「${label}」之后 规模: 丢了——这正是静默删掉 93 条数据的那个 bug`)
+      }
+      // 而且必须**真的还写着那一行**，不是靠默认值蒙对。
+      assert.match(read(), /^规模: 大$/m, 'front-matter 里必须真的还有 `规模: 大`')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
     }
   })
 
