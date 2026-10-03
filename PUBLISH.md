@@ -91,6 +91,11 @@ bash tools/release.sh vX.Y.Z          # 建 Release（**内置测试门禁**，�
 | 6 | `package.json` | `version`；`description` 是**对外介绍**（插件管理器 / npm / GitHub 侧栏显示的那段），**只讲这个插件是干什么的**，见下「description 别写成开发日志」 |
 | 7 | `.github/release-vX.Y.Z.md` | 新版本的正文 + 「验收判据」一节 |
 | 8 | `.github/images/` | **改过 `UI.md` 就必须重渲染**：`npm run render-tutorial`（见下） |
+| 9 | **GitHub 仓库 About** | 仓库页右上角那段介绍（**不在仓库文件里**，改不到 git，只能走 API）：`PATCH /repos/liancha22/dsh-puzzle-mode`。与 `package.json` 的 `description` 同一读者、同一规矩——**别抄用户原话、别写开发流程** |
+
+> 第 9 条为什么单列：About **不在任何被 `git push` 覆盖的文件里**，所以「提交推送」永远
+> 不会顺带更新它。实测它从 v0.20.0 起一路停在「一个会话只绑一个项目…文档格式 v6」，
+> 与事实相反地挂了三个版本，直到 v0.21.0 之后才被发现。
 
 > 第 1 条是**用户明确要求**的（2026-10-01）：「每次有更新都要改 readme」。
 
@@ -103,9 +108,17 @@ bash tools/release.sh vX.Y.Z          # 建 Release（**内置测试门禁**，�
 
 | 别写 | 为什么 | 该写在哪 |
 | --- | --- | --- |
+| **用户原话 / 提问原文**（「原话：…」「用户问：…」） | 那是**聊天记录**，不是对外介绍；读者要看的是这版改了什么，不是谁怎么提的 | Release 正文、`CHANGELOG.md` |
 | 测试约定 / 契约测试文件路径 / 发版门禁 | 仓库内部流程，用户不关心 | `PUBLISH.md`、`~/.dsh/AGENTS.md` |
 | 「三红一绿」「tag 在全红下打的」 | 开发过程的事 | Release 正文、`## 致谢` |
 | 逐版本历史堆叠（v0.19.8 干了啥、v0.19.7 干了啥…） | 撑爆介绍，且 README 已有 | `README.md`「最新版本」、`CHANGELOG.md` |
+
+**同一条规矩管三处**：`package.json` 的 `description`、GitHub 仓库 About、
+**README 的版本小节**。三者都是对外介绍，读者都是「要用这个插件的人」。
+
+**实测教训（第二条）**：v0.21.0 的 README 版本小节里把三条需求原话、两条提问原文
+**逐字抄了进去**（`（原话：「造着项目建文档加…」）`），被用户当场抓到——
+「你怎么把用户问写在介绍了」。原话留在 Release 正文与 CHANGELOG 就够了。
 
 **实测教训**：description 曾一路从 270 → 311 → 340 → 386 → 406 → 424 → 466 字符，
 每发一版就把「本版改了什么」追加一句，最后成了开发日志。
