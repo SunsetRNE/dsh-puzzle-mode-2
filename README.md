@@ -17,7 +17,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.20.1** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.20.2** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -28,7 +28,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.20.1
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.20.2
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -39,7 +39,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.20.1.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.20.1/dsh-puzzle-mode-0.20.1.tgz)
+[dsh-puzzle-mode-0.20.2.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.20.2/dsh-puzzle-mode-0.20.2.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -56,6 +56,24 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.20.2 · 审查把 `## 工作流` 当条目量，长期挂着 7 条假发现
+
+**这个 bug 也是「做完上一版顺手跑审查」发现的**——本项目的审查里一直有
+`## 工作流` 那一栏「7 条超长」，而那些步骤**全都是合法的**。
+
+**根因**：`MAIN_ENTRY_SPEC` 由 `SECTION_ORDER` 直接生成，把 `## 工作流` 也当成
+**条目小节**，于是拿 `ENTRY_LIMITS.workflow = 50` 去量**每一行**。
+可步骤的合法上限是 `WORKFLOW_STEP_LIMIT = 80`——**两把尺子不一样**。
+51–80 字的步骤被判超长，而写入侧（`checkWorkflowBlocks`）明明收得下。
+
+**修法**：把 `workflow` 从条目规格里**排除**——它本来就不是「一句话条目」，
+而是一条流水线块；它的形状校验有自己的那把尺子（名字限长 / 步数 / 每步 ≤80）。
+加契约测试钉住：断言 `MAIN_ENTRY_SPEC.workflow === undefined`，并端到端写一条
+60 字的步骤确认审查不报它。**把 bug 改回去，测试立刻红。**
+
+> 顺带清掉了本项目文档里最后一处真发现：「写操作回吐整份状态浪费35倍」——
+> 这是 v0.19.9 的 ② 机制（数字须带测法）报出来的，改成「实测：回吐7026字而回执1192」。
 
 ### v0.20.1 · 修一个「老文档头永远与正文矛盾」的迁移 bug
 
@@ -115,40 +133,6 @@ v6 及更早有一条不变量：**一个会话只绑一个项目**——`bindSe
 **还有一个被用户当场抓到的**：我做过一个「只绑一个就退化成一行纯文字」的优化——
 单绑定是绝大多数情况，等于**切换条平时根本不存在**。已删掉，并把
 「绑几个就画几个胶囊」写成了回归断言。
-
-### v0.19.9 · 三条通用约束：别靠「记住」，靠「撞见就红」
-
-用户原话：**「你说你现在的自觉性还不强，有什么通用建议给拼图插件增强约束」**。
-
-这一轮暴露的规律很清楚：
-
-| 规则 | 写在哪 | 结果 |
-| --- | --- | --- |
-| 「description 别堆版本历史」 | `PUBLISH.md` **早就写着** | ✗ 我还是违反了——改 `package.json` 时**撞不见它** |
-| 「测试要跑」 | 先只写文档 | ✗ 没用；加了 `release.sh` 门禁 → ✓ 真管住了 |
-| 「条目要带出处」 | `checkEntry` **写入时校验** | ✓ 从没漏过——写的时候就红 |
-
-**同一条规则，「写在文档里」和「在动作那一刻报错」是两个物种。** 三条约束都朝这个方向做。
-
-| # | 约束 | 关键设计 |
-| --- | --- | --- |
-| ① | 工作流可写 `触发: 关键词`，命中该动作时自动注入 | 落在 `tools/post-execute`（`additionalContexts`）：**不拦、不弹窗**，工具照常成功 |
-| ② | 数字须带测法，否则 audit 报 warn | 只认 `ms/µs/KB/MB/倍` 这类**换个机器就会变**的度量；`≤4 条`「五节」是规定，不报 |
-| ③ | 写「已定」时回显现有条目 | **不做自动判冲突**——实测字面算法拿不到可用阈值（真冲突只 1 分） |
-
-**① 为什么不用 `pre-execute`**：它只有 `allow`/`deny`/`ask`——`deny` 会拦下工具（改个
-`package.json` 就报错），`ask` 会弹审批框（比不提醒更烦），而 `allow` **不能附带任何信息**。
-`post-execute` 的 `additionalContexts` 才是「非阻塞提醒」的唯一通道。
-
-**③ 为什么只回显不判断**：按 2-gram 打分时，真冲突「不写测试不跑测试」vs「要跑测试」
-**只拿 1 分**（只共享「测试」两字）——阈值 2 会漏、降到 1 会误报。根因是
-**「矛盾」是语义关系不是字面关系**。所以只做确定能做对的那一半：把旧条目摊出来让模型自己判。
-
-**三条守卫都验证过真能抓到破坏**：让 ① 不写回 `触发:` ✓ 红、把 ② 改成拒绝 ✓ 红、
-关掉 ③ 的接线 ✓ 红（这条**最初漏过**——只测纯函数时接线断了照样全绿，已改成走真实写入路径）。
-
-**边界**：这三条**都不是**「保证模型不犯错」，只是把**违反变得可见**。
-真正硬的是「条目必须带出处」那种**写入时直接拒绝**的规则；②③ 受限于语义判断做不准，只能做到可见。
 
 ## 功能
 

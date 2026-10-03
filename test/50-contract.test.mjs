@@ -37,6 +37,7 @@ import {
   HEALTH_HEADING,
   MAIN_FILE,
   OLD_PREAMBLE_LINES,
+  MAIN_ENTRY_SPEC,
   MODE_PUZZLE_ONLY,
   MODULE_DIR,
   MODULE_SECTION_HEADINGS,
@@ -50,6 +51,8 @@ import {
   SESSION_FIELD,
   SOURCE_MARK,
   WORKFLOW_MAX_STEPS,
+  WORKFLOW_STEP_LIMIT,
+  writeWorkflow,
   addBinding,
   bindSession,
   boundProject,
@@ -454,6 +457,28 @@ try {
     const digest = conflictDigest('decided', ['毫不相干的决定'], ['另一件毫不相干的事'], ENTRY_CAPS.decided)
     assert.deepEqual(digest.existing, ['毫不相干的决定'], '不管像不像，旧条目都原样给出（由模型判）')
     assert.equal(conflictDigest('decided', [], ['x'], ENTRY_CAPS.decided), null, '没有旧条目就不打扰')
+  })
+
+  check('契约·`## 工作流` 不套条目的尺子（步骤合法上限是 80，不是 50）', () => {
+    // 实测 bug（v0.20.1 修）：`MAIN_ENTRY_SPEC` 把 `## 工作流` 也当条目小节，
+    // 用 `ENTRY_LIMITS.workflow = 50` 量每一行；而步骤合法上限是 `WORKFLOW_STEP_LIMIT = 80`。
+    // 于是 51–80 字的**完全合法**的步骤被报「超长」——本项目自己的文档长期挂着 7 条假发现。
+    assert.equal(MAIN_ENTRY_SPEC.workflow, undefined, '工作流不是条目小节，不该出现在条目规格里')
+    assert.ok(WORKFLOW_STEP_LIMIT > ENTRY_LIMITS.workflow, '步骤上限本来就比条目上限宽，这正是误报的来源')
+    // 端到端：写一条 60 字的步骤（≤80 合法）落盘，审查不该报它超长。
+    const root80 = join(root, 'wf80')
+    createProject(root80, 'wf80', '', [], '只拼不写')
+    // 造一个**正好落在 51–80 字**的步骤：这是合法区间，也正是旧代码误报的区间。
+    const long = '这一步刻意写到六十个字上下用来验证步骤上限比条目上限宽的事实'.padEnd(60, '啊')
+    assert.ok(long.length > ENTRY_LIMITS.workflow && long.length <= WORKFLOW_STEP_LIMIT,
+      `样本要落在 ${ENTRY_LIMITS.workflow}–${WORKFLOW_STEP_LIMIT} 之间，实际 ${long.length}`)
+    const file = join(root80, 'wf80', PUZZLE_DIR, MAIN_FILE)
+    const text = readFileSync(file, 'utf8')
+    const written = writeWorkflow(text, [{ name: '长步骤流程', steps: [long] }])
+    writeFileSync(file, written, 'utf8')
+    const state = readState(root80, 'wf80')
+    const issues = (state.mainEntryIssues ?? []).filter((item) => item.key === 'workflow')
+    assert.deepEqual(issues, [], '60 字的步骤是合法的，审查不该报它超长')
   })
 
   check('契约·迁移必须认得出**每一版**的旧说明行（漏一条那一版就永远修不好）', () => {

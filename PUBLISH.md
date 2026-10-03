@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.20.1（**修迁移认不出 v3 四节说明行的 bug**——本项目自己的主文档就中招：文件头写「只有四节」、正文早就是五节，跑多少次迁移都修不掉，因为 `OLD_PREAMBLE_LINES` 只列了「只有五节」那条，而判据是整行完全一致才替换。已补 v3 那行 + 契约测试直接喂原文，漏哪一版就红在哪一版。含 v0.20.0 多绑定功能） |
+| 版本 | v0.20.2（**修审查把 `## 工作流` 当条目量**——`MAIN_ENTRY_SPEC` 由 `SECTION_ORDER` 直接生成，于是拿 `ENTRY_LIMITS.workflow=50` 量每一行，而步骤合法上限是 `WORKFLOW_STEP_LIMIT=80`：51–80 字的合法步骤被报超长，本项目自己的审查里长期挂着 7 条假发现。已把 workflow 从条目规格排除（它不是条目小节）+ 契约测试钉住，改回 bug 立刻红。含 v0.20.1 迁移修复与 v0.20.0 多绑定） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
