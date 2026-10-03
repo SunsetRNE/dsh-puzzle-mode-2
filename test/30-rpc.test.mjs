@@ -641,6 +641,55 @@ try {
     ok('RPC scan → 给出没有拼图文档的候选目录')
   }
 
+  {
+    /**
+     * 写操作必须**回一份绑定组**——这是「点了模式又自己弹回去」的根因，也是
+     * 「切着切着胶囊没了」那条客户端合并的**上游修法**。
+     *
+     * 为什么这条必须**驱动真实 RPC 路由**、而不能只测 `bindingPanel` 纯函数：
+     * 这个 bug 的本质是**接线断了**——`bindingPanel` 自己怎么写都对，
+     * 错在 `mode` / `size` / `current` 这几个分支**根本没调它**（返回只有 `summarize`，
+     * 里面没有 `bindings`）。纯函数断言全绿也照漏（pit: 守卫只测纯函数会漏接线断开）。
+     * 所以这里断言的是**返回体里真有 `bindings`，且值是新的**。
+     */
+    const handler = captureRoute()
+    createProject(root, 'wb-a', '目标', ['m1'], '只拼不写', 'session-writeback')
+    createProject(root, 'wb-b', '目标', ['m1'], '只拼不写', 'session-writeback')
+    assert.equal(boundProjects(root, 'session-writeback').length, 2, '取证：这条会话确实绑了两个项目')
+
+    const before = await call(handler, { body: JSON.stringify({ method: 'state', sessionId: 'session-writeback' }) })
+    assert.ok(Array.isArray(before.body.result.bindings), 'state 本来就有绑定组（对照基线）')
+
+    // ① 写模式：面板胶囊的 title 直接渲染 `item.mode`，回旧值就是「点了又弹回去」。
+    const wrote = await call(handler, {
+      body: JSON.stringify({ method: 'mode', sessionId: 'session-writeback', project: 'wb-a', mode: '边拼边写' }),
+    })
+    assert.equal(wrote.body.result.mode, '边拼边写')
+    assert.ok(Array.isArray(wrote.body.result.bindings),
+      '写模式必须回绑定组（缺了客户端只能沿用旧数组 → 胶囊停在改动前的模式）')
+    assert.equal(wrote.body.result.bindings.length, 2, '绑定组要完整，不能只剩当前项目')
+    assert.equal(wrote.body.result.bindings.find((item) => item.project === 'wb-a').mode, '边拼边写',
+      '绑定组里那一项必须是**新**模式——这正是「点了又自己弹回去」看到的字段')
+
+    // ② 写规模：同样要回绑定组（与 mode 同形，别只修一处）。
+    const sized = await call(handler, {
+      body: JSON.stringify({ method: 'size', sessionId: 'session-writeback', project: 'wb-a', size: '大' }),
+    })
+    assert.ok(Array.isArray(sized.body.result.bindings), '写规模也要回绑定组')
+
+    // ③ 切当前：`current` 只动「当前是哪个」，绑定集合没变——正因如此它更要自己给真值，
+    //    否则客户端只能靠 `markCurrentLocal` 那个**自认没有断言**的本地兜底。
+    const moved = await call(handler, {
+      body: JSON.stringify({ method: 'current', sessionId: 'session-writeback', project: 'wb-b' }),
+    })
+    assert.ok(Array.isArray(moved.body.result.bindings), '切当前也要回绑定组')
+    assert.equal(moved.body.result.currentProject, 'wb-b')
+    assert.equal(moved.body.result.bindings[0].project, 'wb-b', '第一个就是当前（不变量）')
+    assert.equal(moved.body.result.bindings.find((item) => item.project === 'wb-b').current, true,
+      '当前项标记要落在新切过去的那个项目上')
+    ok('RPC 写操作（mode / size / current）→ 都回完整绑定组且值是新的')
+  }
+
   console.log(`\n${passed} 项通过`)
 } finally {
   rmSync(root, { recursive: true, force: true })
