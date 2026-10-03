@@ -15,7 +15,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ASK_MAX_OPTIONS, ASK_MAX_QUESTIONS, ENTRY_CAPS, ENTRY_LIMITS, HEALTH_DIMENSIONS, WORKFLOW_NAME_LIMIT, WORKFLOW_STEP_LIMIT } from '../lib/puzzle.js'
+import { ASK_MAX_OPTIONS, ASK_MAX_QUESTIONS, ENTRY_CAPS, ENTRY_LIMITS, HEALTH_DIMENSIONS, SIZE_CAPS, SIZES, SIZE_LARGE, SIZE_MEDIUM, SIZE_SMALL, capsOfSize, WORKFLOW_NAME_LIMIT, WORKFLOW_STEP_LIMIT } from '../lib/puzzle.js'
 
 const here = dirname(fileURLToPath(import.meta.url))
 // 维度名**引常量**而不是写死（v0.19.8）：改维度只改 lib/constants.js，断言自动跟上。
@@ -151,6 +151,173 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   const bind = mod.bindTemplate('demo')
   assert.ok(bind.includes('op:bind'), '绑定模板要点名 op:bind')
   assert.ok(bind.includes('demo'), '绑定模板要带上项目名')
+}
+
+/* -------- 规模档位：切档要立刻亮，且「当前上限」必须跟着档位走 -------- */
+
+/**
+ * 用户报「项目规模切换是**假态**，而且**延时切换**」。两个症状两个根因，都在 `sizeBlock`：
+ *
+ * 1. **假态**：面板那行「当前上限：悬而未决 ≤x · 已定 ≤y …」原先读 `limits.sizeCaps`，
+ *    而那是「小/中/大**三档的整张表**」，不是当前这一档。于是 `caps.pending` 恒为
+ *    `undefined`，靠 `undefined === undefined ? 4 : …` 的兜底**永远显示中档数字**——
+ *    切到「大」显示「已定 ≤10」、切到「小」也显示「已定 ≤10」。真值在 `limits.entryCaps`
+ *    （= `capsOfSize(当前档)`）。**这条断言就是钉它**：三个档位必须渲染出三个不同的上限行。
+ * 2. **延时**：按钮只在**回包后**才变。已改成乐观更新——按下即翻档。
+ *
+ * 为什么断言「三个档渲染出三行不同的字」而不是断言内部字段：这个 bug 的特征是
+ * **字段名读错但界面照常渲染**（不报错、不空白，只是数字永远一样），
+ * 所以只有**渲染出来的文本**能抓住它。
+ */
+{
+  const szRequests = []
+  const szBindings = [{ project: 'aaa', current: true, mode: '只拼不写', health: 60, moduleCount: 2, initialized: true }]
+  const szState = (size) => ({
+    ok: true, initialized: true, projectRoot: '/tmp/ws7', projectDir: '/tmp/ws7/aaa/拼图',
+    project: 'aaa', mode: '只拼不写', health: 60, version: 7, dimensions: {}, modules: [], findings: [],
+    bindings: szBindings, currentProject: 'aaa', bindingWarnThreshold: 8,
+    size,
+    // 与宿主 `summarize` 同形：`limits` 里 `entryCaps` 是**当前档**，`sizeCaps` 是三档整表。
+    limits: {
+      askQuestions: 10, askOptions: 10,
+      entryLimits: ENTRY_LIMITS, entryCaps: capsOfSize(size),
+      workflowNameLimit: WORKFLOW_NAME_LIMIT, workflowStepLimit: WORKFLOW_STEP_LIMIT, workflowMaxSteps: 12,
+      bindingWarnThreshold: 8, sizeCaps: SIZE_CAPS, sizes: SIZES,
+    },
+  })
+  let szCurrent = SIZE_MEDIUM
+  /**
+   * **回包闸门**：扣住写操作的响应，用来真正验证「按下即亮」。
+   *
+   * 为什么必须扣住（我第一版没扣，结果是**假绿**）：`await setTimeout(0)` 是**宏任务**，
+   * 排在微任务链之后，所以 `fetch → json → then` 那三层 promise 早就跑完了——
+   * 断言看到的其实是**回包之后**的状态，把乐观更新整个删掉它照样绿。
+   * 扣住回包后，`onClick()` 返回时 store 里只可能是**乐观更新写进去的那份**。
+   */
+  let szHold = null
+  const szOpenGate = () => {
+    let release
+    const p = new Promise((resolve) => { release = resolve })
+    szHold = { p, release }
+    return function close() { const held = szHold; szHold = null; held.release() }
+  }
+  const szWindow = {
+    __ModuleLoader__: { load(entry) { szRequests.push(entry) } },
+    setInterval() { return 1 }, clearInterval() {}, addEventListener() {}, removeEventListener() {},
+  }
+  const szFetch = (url, options) => {
+    const body = JSON.parse(options.body)
+    let result
+    if (body.method === 'state') result = szState(szCurrent)
+    else if (body.method === 'list') result = { ok: true, projects: [{ name: 'aaa', health: 60 }] }
+    else if (body.method === 'size') { szCurrent = body.size; result = szState(body.size) }
+    // 写模式的回包按**真实 `summarize` 形状**给（含 size / limits / 绑定组），
+    // 否则这条用例会用一个比现实更穷的回包去测合并逻辑，测不出真问题。
+    else if (body.method === 'mode') result = Object.assign(szState(szCurrent), { mode: body.mode })
+    else result = { ok: true, mode: body.mode }
+    const payload = { json: () => Promise.resolve({ ok: true, result }) }
+    // 只有写操作会被闸门扣住（`state` 是面板启动时要用的，扣住会卡住整个渲染）。
+    const isWrite = body.method === 'size' || body.method === 'mode'
+    return isWrite && szHold !== null ? szHold.p.then(() => payload) : Promise.resolve(payload)
+  }
+  new Function('window', 'document', 'fetch', source)(
+    szWindow,
+    { createElement: () => ({ setAttribute() {}, textContent: '' }), head: { appendChild() {} }, body: {} },
+    szFetch,
+  )
+  const szMod = szRequests[0].factory((name) => {
+    if (name === 'react') return fakeReact
+    throw new Error('unexpected require: ' + name)
+  })
+  const szRegs = []
+  const szSlots = { inject(name, cb) { cb(); return () => {} }, register(o, c) { szRegs.push({ o, c }); return () => {} } }
+  szMod.apply({ get: (n) => (n === 'slots' ? szSlots : undefined), effect: () => () => {} })
+  const szBtn = szRegs.find((r) => r.o.name === 'conversation.input.left')
+  const szPanel = szRegs.find((r) => r.o.name === 'shell.overlay')
+  szBtn.c({ sessionId: 'session-size', inputActions: { setDraft() {}, submit() {} } }).props.onClick()
+  await flush()
+
+  /** 取那行「当前上限：…」的文本（唯一带「当前上限」的那个节点）。 */
+  const capsLine = (tree) => {
+    const node = findAll(tree, (n) => typeof n === 'object' && n.props !== undefined
+      && typeof n.children?.[0] === 'string' && n.children[0].indexOf('当前上限') === 0)
+    return node.length > 0 ? node[0].children[0] : null
+  }
+  /** 找到某个档位按钮（按钮里的 `span` 文本就是档位名）。 */
+  const sizeButton = (tree, label) => findAll(tree, (n) => typeof n === 'object' && n.type === 'button'
+    && findAll(n, (c) => c === label).length > 0)[0]
+
+  let szTree = szPanel.c({})
+  const midLine = capsLine(szTree)
+  assert.ok(midLine !== null, '规模区必须渲染「当前上限」那行')
+  // 引常量，别写死数字（本项目的「断言引常量」纪律）。
+  assert.ok(midLine.includes('已定 ≤' + SIZE_CAPS[SIZE_MEDIUM].decided),
+    '中档应显示中档上限，实际：' + midLine)
+
+  // 切到「大」：**扣住回包 + 同步读树**，此刻 store 里只可能是乐观更新写进去的那份。
+  const bigBtn = sizeButton(szTree, SIZE_LARGE)
+  assert.ok(bigBtn !== undefined, '要能找到「大」按钮')
+  let openGate = szOpenGate()
+  bigBtn.props.onClick()
+  /**
+   * ⚠️ **必须同步读树，不能 `await` 之后再读**（我第一版就是那么写的，结果假绿）。
+   *
+   * 这个假 React 的 `useEffect` 是**每次渲染都跑**的（真实 React 只在挂载/依赖变化时跑），
+   * 而面板的 effect 里有 `load(sessionId)`。所以只要 `await` 一个宏任务，
+   * 那次 `state` 拉取就会回来、把乐观更新**冲掉**——断言看到的其实是回包后的状态，
+   * 把乐观更新整个删掉也照样绿。
+   *
+   * 同步读则只可能读到 `onClick()` 里那次同步 `setState` 的结果；
+   * 回包还被闸门扣着，`state` 拉取是异步的（尚未落地）。这才是「按下即亮」的真判据。
+   */
+  szTree = szPanel.c({})
+  const bigLineNow = capsLine(szTree)
+  assert.ok(bigLineNow !== null && bigLineNow.includes('已定 ≤' + SIZE_CAPS[SIZE_LARGE].decided),
+    '点「大」必须**按下即亮**（回包被扣住时也要亮），实际：' + bigLineNow)
+  assert.ok(bigLineNow.includes('悬而未决 ≤' + SIZE_CAPS[SIZE_LARGE].pending),
+    '「大」档的悬而未决上限也要跟着走，实际：' + bigLineNow)
+  openGate()
+  await flush()
+
+  // 再切到「小」——三档必须给出**三个不同**的上限行（这就是「假态」的判据）。
+  szTree = szPanel.c({})
+  openGate = szOpenGate()
+  sizeButton(szTree, SIZE_SMALL).props.onClick()
+  szTree = szPanel.c({})
+  const smallLine = capsLine(szTree)
+  assert.ok(smallLine.includes('已定 ≤' + SIZE_CAPS[SIZE_SMALL].decided),
+    '「小」档要显示小档上限（回包被扣住时也要对），实际：' + smallLine)
+  assert.notEqual(smallLine, midLine, '「小」与「中」的上限行**不能一样**——一样就是读了 sizeCaps 的假态')
+  assert.notEqual(smallLine, bigLineNow, '「小」与「大」的上限行不能一样')
+  openGate()
+  await flush()
+  console.log('ok   规模档位：按下即翻档（扣住回包也亮），且「当前上限」跟着档位走（三档三样）')
+
+  /**
+   * 模式按钮的**延时**症状（用户报的「延时切换」）与规模同一处纪律：
+   * 按下必须立刻亮（`data-on='1'`），不能等回包。模式按钮把文本直接当子节点，
+   * 用 `data-on` 判高亮即可。
+   */
+  const modeOn = (tree, label) => {
+    const btn = findAll(tree, (n) => typeof n === 'object' && n.type === 'button'
+      && Array.isArray(n.children) && n.children.includes(label))[0]
+    return btn === undefined ? null : btn.props['data-on']
+  }
+  szTree = szPanel.c({})
+  assert.equal(modeOn(szTree, '只拼不写'), '1', '初始应高亮宿主给的模式')
+  const writeAfterBtn = findAll(szTree, (n) => typeof n === 'object' && n.type === 'button'
+    && Array.isArray(n.children) && n.children.includes('写后再拼'))[0]
+  assert.ok(writeAfterBtn !== undefined, '要能找到「写后再拼」按钮')
+  // 同样**扣住回包 + 同步读树**：不这么做的话，await 之后那次 `state` 拉取已经把
+  // 乐观更新冲掉了，把乐观更新删掉断言照样绿（第一版就是这么假绿的）。
+  const modeGate = szOpenGate()
+  writeAfterBtn.props.onClick()
+  szTree = szPanel.c({})
+  assert.equal(modeOn(szTree, '写后再拼'), '1', '点模式必须**按下即亮**（扣住回包也亮）——用户报的「延时切换」')
+  assert.equal(modeOn(szTree, '只拼不写'), '0', '旧模式的高亮要同时撤掉')
+  modeGate()
+  await flush()
+  console.log('ok   执行模式：按下即亮（扣住回包也亮），不等回包')
 }
 
 /* ---------------- bindings 两种形状（v0.21.0 加固） ---------------- */
