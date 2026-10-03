@@ -8,7 +8,7 @@
 
 | 文件 | 加了什么 | 为什么 |
 | --- | --- | --- |
-| `lib/index.js` | 段序由写死 `10500` 改为**默认 `10100`**（排在 `dsh-infinite-gen-5` 的「真末位锚点」10150 之前），支持 `PUZZLE_SECTION_ORDER=<n>` 覆盖；导出 `SECTION_ORDER_VALUE` | 上游默认把本段排在别人末位锚点之后，对方那句「这是整份系统提示的最后一段」在本机不成立；协商成确定、可核的段序 |
+| `lib/index.js` | 段序由写死 `10500` 改为**默认 `10100`**（排在 `dsh-infinite-gen-5` 的「真末位锚点」10150 之前），支持 `PUZZLE_SECTION_ORDER=<n>` 覆盖；导出 `SECTION_ORDER_VALUE` | 上游默认把本段排在别人末位锚点之后，对方那句「这是整份系统提示的最后一段」在本机不成立；协商成确定、可核的段序。**截至上游 v0.20.3（`a7fc197`）仍是写死 `const ORDER = 10500`，这一行仍是本仓独有贡献** |
 | `lib/index.js`（政策文本） | 六条**跨插件分工条款**：域划分 / 整批题不当打断者（批量优先、文档一轮结束后幂等回写）/ 提问额度按轮的实际目的取 / 「停下」只停动作不回退 / 拼图文档只走本插件工具 / 末位让位（本段 10100 早于无限五代末位锚点 10150） | 两份载荷同装时，规则写在同一份提示里，不靠外部约定 |
 | `tools/verify-cross-plugin.mjs` | 握手校验（`npm run verify:cross`，并挂到 `npm test` 链尾）：核段名/段序、六条条款在场；本机装了 `dsh-infinite-gen-5` 时读它的 `data/arbitration.mjs` 对账 | 任一侧改数字而另一侧没跟上 → 当场报错（这条真的抓到过一次漂移） |
 | `UPSTREAM-ISSUES.md` | 上游测试与实现脱节的清单（已通过 PR #2 全部回贡上游） | 留档：什么问题、怎么复现、怎么修 |
@@ -79,3 +79,29 @@ npm pack && curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: 
    改完文档要重传附件（先删旧附件再传，否则会出现 `-1` 后缀的同名附件）。
 3. **发版前核包内容**：`npm pack --dry-run` 里必须看到 `compat.json`、`COMPAT.md`、`tools/verify-cross-plugin.mjs`
    —— v0.20.2 漏了这三个，装出来的包里 `npm test` 直接在握手校验那步 ENOENT（v0.20.3 修）。
+
+## 六、上游跟到哪一步：可退役清单（2026-10-02 实测）
+
+判断「本仓的某项兼容改动还要不要背」不能靠感觉，要靠**可核证据**。这里记的是当前证据与退役条件：
+
+| 兼容项 | 上游有没有 | 证据（怎么核的） | 可退役条件 |
+| --- | --- | --- | --- |
+| 段序可覆盖（默认 10100 + `SECTION_ORDER_VALUE`） | **没有** | 上游 `a7fc197` 的 `lib/index.js` 仍是 `const ORDER = 10500`（`git show upstream/main:lib/index.js`）；本仓 HEAD 是 IIFE 版；装机副本 sha256 与本仓 HEAD 一致 | 上游源码里出现 `SECTION_ORDER_VALUE` 或 `PUZZLE_SECTION_ORDER` 时，本仓这行退役 |
+| 六条跨插件分工条款 | **没有** | 上游政策文本里没有 `[跨插件仲裁]` 相关条款 | 上游自行写入分工条款时退役 |
+| 握手校验 `verify:cross` + `compat.json` 契约 | **没有** | 上游无 `tools/verify-cross-plugin.mjs` / `compat.json` | 上游做出对等机制时，本仓改成调用上游的 |
+| 上游同步器 `sync:upstream` / 互校归档 `log:compat` | **没有** | 上游无对应脚本 | 本仓维护成本大于收益时合并或删 |
+
+### 装机副本到底是谁的构建（易错点）
+
+本仓与上游**同名**（`dsh-puzzle-mode`），`package.json` 的 `repository` 字段也仍指向上游 —— 所以「看版本号 / 看 repository」**判不出来源**，只能比对内容：
+
+```bash
+INST=/root/.dsh/plugin-src/dsh-puzzle-mode/lib/index.js
+sha256sum "$INST"                                   # 装机副本
+git show HEAD:lib/index.js | sha256sum              # 本仓 HEAD
+git show upstream/main:lib/index.js | sha256sum     # 上游
+# 2026-10-02 实测：装机 = 本仓 HEAD（c6a4601572db43a8…），与上游（26eb36dd1e555e6a…）不同
+```
+
+结论：**装机的那份 0.20.3 是本仓的构建**，不是上游的 —— 曾经据「版本号 0.20.3 + 段序可覆盖」误判成「上游跟进了」，
+比对 sha256 才发现搞反了。以后凡是「上游是否跟进」的断言，一律附一条这样的比对命令。

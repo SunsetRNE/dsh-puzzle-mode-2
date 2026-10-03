@@ -6,7 +6,8 @@
 
 > **本仓定位**：`SunsetRNE/dsh-puzzle-mode-2` 是[上游 `dsh-puzzle-mode`](https://github.com/liancha22/dsh-puzzle-mode) 的
 > **兼容性复刻仓** —— 上游管功能，本仓管**与其它 DSH 插件共存**（段序可协商、跨插件分工条款、握手校验
-> `npm run verify:cross`、上游同步器 `npm run sync:upstream`）。逐条差异与同步原则见 [`COMPAT.md`](COMPAT.md)。
+> `npm run verify:cross`、上游同步器 `npm run sync:upstream`）。逐条差异、**上游跟到哪一步的可退役清单**、
+> 以及「装机副本是谁的构建」的比对方法见 [`COMPAT.md`](COMPAT.md)。
 
 ![面板速览](.github/images/00-首页速览.png)
 
