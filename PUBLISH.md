@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.20.3（**修多绑定点绑定闪红框**——用户报「选中以后点绑定不行会闪出红框」。根因：多选载荷是 `projects: [...]`、没有 `project` 字段，而 `bind` 的入参守卫写成「没有 project 就 400」且排在 projects 分支之前，请求永远被挡。守卫已改成「两个都没给才算缺参数」，服务端 + 界面两处补断言。含 v0.20.2 审查尺子修复、v0.20.1 迁移修复、v0.20.0 多绑定） |
+| 版本 | v0.20.4（**修切换项目「切着切着胶囊没了」**——用户报。根因：面板把写操作返回整体当新 data，而 mode/workflow/bind/current 的返回都是 `summarize(readState(...))`、**都不带 bindings**，于是每次写操作 `data.bindings` 变 undefined、切换条塌成兜底，等下次轮询才恢复；实测点一下模式按钮胶囊就从两个变一个。修法：客户端 `mergePanelData` 缺字段就沿用旧值。另加了 `markCurrentLocal` 但**未能构造出它单独失效的场景**，注释里已写明「价值未经独立验证」。含 v0.20.3 多选绑定红框修复等） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |

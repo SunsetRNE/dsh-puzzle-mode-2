@@ -406,6 +406,84 @@ console.log('ok   bundle 格式、两个 Slot 注册、图块详情、客观发�
 
   console.log('ok   多绑定切换条：绑几个画几个胶囊 / 当前高亮 / 点胶囊切当前 / × 只解一个 / ＋ 在场')
 
+/* ------------- 写操作之后胶囊必须还在（不能等下次轮询才回来） ------------- */
+
+/**
+ * 这条断言的由来（用户报「切换项目切着切着胶囊没了」）：
+ *
+ * 面板把**写操作的返回**整体当成新 `data`，而 `mode` / `workflow` / `bind` / `current`
+ * 的返回都是 `summarize(readState(...))`——**一个都不带 `bindings`**（只有 `state` 带）。
+ * 于是每做一次写操作，`data.bindings` 就变成 `undefined`，切换条塌成「只有当前项目」
+ * 的兜底，要等下一次轮询（最多 8 秒）才恢复。
+ *
+ * 实测复现：点一下执行模式按钮，胶囊就从 `["aaa","bbb"]` 变成 `["aaa"]`。
+ * 「切着切着胶囊没了」正是这个——每切一次空一下。
+ */
+{
+  const swLoaded = []
+  const swWindow = {
+    __ModuleLoader__: { load(entry) { swLoaded.push(entry) } },
+    setInterval() { return 1 },
+    clearInterval() {},
+    addEventListener() {},
+    removeEventListener() {},
+  }
+  const SW_BINDINGS = [
+    { project: 'aaa', current: true, mode: '只拼不写', health: 60, moduleCount: 2, initialized: true },
+    { project: 'bbb', current: false, mode: '写后再拼', health: 40, moduleCount: 1, initialized: true },
+  ]
+  const swFetch = (url, options) => {
+    const body = JSON.parse(options.body)
+    let result
+    if (body.method === 'state') {
+      result = { ok: true, initialized: true, projectRoot: '/tmp/ws5', projectDir: '/tmp/ws5/aaa/拼图', project: 'aaa', mode: '只拼不写', health: 60, version: 7, dimensions: {}, modules: [], findings: [], bindings: SW_BINDINGS, currentProject: 'aaa', bindingWarnThreshold: 8 }
+    } else if (body.method === 'list') {
+      result = { ok: true, projects: [{ name: 'aaa', health: 60 }, { name: 'bbb', health: 40 }] }
+    } else {
+      // 写操作（mode / current / bind / workflow）的**真实现形状**：没有 `bindings`。
+      result = { ok: true, initialized: true, project: 'aaa', mode: body.mode, health: 60, version: 7, dimensions: {}, modules: [], findings: [] }
+    }
+    return Promise.resolve({ json: () => Promise.resolve({ ok: true, result }) })
+  }
+  new Function('window', 'document', 'fetch', source)(
+    swWindow,
+    { createElement: () => ({ setAttribute() {}, textContent: '' }), head: { appendChild() {} }, body: {} },
+    swFetch,
+  )
+  const swMod = swLoaded[0].factory((name) => {
+    if (name === 'react') return fakeReact
+    throw new Error('unexpected require: ' + name)
+  })
+  const swRegs = []
+  const swSlots = { inject(name, cb) { cb(); return () => {} }, register(o, c) { swRegs.push({ o, c }); return () => {} } }
+  swMod.apply({ get: (n) => (n === 'slots' ? swSlots : undefined), effect: () => () => {} })
+  const swBtn = swRegs.find((r) => r.o.name === 'conversation.input.left')
+  const swPanel = swRegs.find((r) => r.o.name === 'shell.overlay')
+  swBtn.c({ sessionId: 'session-sw', inputActions: { setDraft() {}, submit() {} } }).props.onClick()
+  await flush()
+  let swTree = swPanel.c({})
+
+  const pillNames = (tree) => findAll(tree, (node) => typeof node === 'object' && node.props !== undefined
+    && node.props.className === 'dshpz-pill')
+    .map((node) => {
+      const span = node.children.find((c) => typeof c === 'object' && c.props !== undefined && c.props.className === 'dshpz-pillname')
+      return span === undefined ? '?' : span.children[0]
+    })
+  assert.deepEqual(pillNames(swTree), ['aaa', 'bbb'], '初始应有两个胶囊')
+
+  // 点一下执行模式按钮（一个**写操作**，返回不带 bindings）。
+  const modeBtn = findAll(swTree, (node) => typeof node === 'object' && node.type === 'button'
+    && Array.isArray(node.children) && node.children.includes('写后再拼'))[0]
+  assert.ok(modeBtn !== undefined, '要能找到「写后再拼」模式按钮')
+  modeBtn.props.onClick()
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  await new Promise((resolve) => setTimeout(resolve, 0))
+  swTree = swPanel.c({})
+  assert.deepEqual(pillNames(swTree), ['aaa', 'bbb'],
+    '写操作之后胶囊**不能塌掉**（这是「切着切着胶囊没了」的根因：写操作返回不带 bindings）')
+  console.log('ok   写操作之后胶囊还在：返回缺 bindings 时客户端合并保留绑定组')
+}
+
 /* ------------- 空态多绑定：勾选 → 点「绑定选中的 N 个」必须发得出去 ------------- */
 
 /**

@@ -17,7 +17,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.20.3** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.20.4** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -28,7 +28,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.20.3
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.20.4
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -39,7 +39,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.20.3.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.20.3/dsh-puzzle-mode-0.20.3.tgz)
+[dsh-puzzle-mode-0.20.4.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.20.4/dsh-puzzle-mode-0.20.4.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -56,6 +56,30 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.20.4 · 切换项目「切着切着胶囊没了」
+
+用户原话：**「又出现一个新bug是切换项目切着切着胶囊没了」**。
+
+**根因**：面板把**写操作的返回**整体当成新 `data`，而 `mode` / `workflow` / `bind` /
+`current` 的返回都是 `summarize(readState(...))`——**一个都不带 `bindings`**
+（只有 `method:'state'` 带）。于是每做一次写操作，`data.bindings` 就变成 `undefined`，
+切换条塌成「只有当前项目」的兜底，要等下一次轮询（最多 8 秒）才恢复。
+
+实测复现：**点一下执行模式按钮，胶囊就从 `["aaa","bbb"]` 变成 `["aaa"]`**。
+切项目只是最容易撞见的那个入口。
+
+**修法**：客户端加一层 `mergePanelData`——写操作的返回**没给**某个字段就沿用旧的
+（给了就用新的，包括空数组）。一次修好 `mode` / `workflow` / `bind` / `current` 全部。
+
+> 另一种修法是让宿主每个写操作都带上 `bindings`，但那要给每个绑定项目都算一遍健康性
+> （`readState`），与「返回体积 ∝ 本次改动」的纪律相反——而且**绑定组本来就没变**，
+> 没有新信息可言。
+
+**过程中的一处诚实交代**：我同时加了 `markCurrentLocal`（切当前后本地把当前项改掉），
+但**没能稳定构造出它单独失效的场景**——试了扣住 `state`、按名字/位置读高亮等几种测法，
+去掉它之后断言仍然绿。所以它**没有**配套回归断言，价值未经独立验证，
+代码注释里写明了这一点。真正防「胶囊塌掉」的是 `mergePanelData`（那条有断言，去掉就红）。
 
 ### v0.20.3 · 多绑定模式点「绑定」闪红框：守卫把两种载荷搞混了
 
@@ -90,29 +114,6 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 
 > 顺带清掉了本项目文档里最后一处真发现：「写操作回吐整份状态浪费35倍」——
 > 这是 v0.19.9 的 ② 机制（数字须带测法）报出来的，改成「实测：回吐7026字而回执1192」。
-
-### v0.20.1 · 修一个「老文档头永远与正文矛盾」的迁移 bug
-
-**这个 bug 是本次做完 v0.20.0、顺手给项目自己的文档跑迁移时发现的**——
-也就是说，它一直挂在**本项目自己的主文档**上：
-
-文件头写着
-
-```
-> 只有四节：模块索引 / 源码索引 / 工具索引 / 坑。决策与轮汇报在 `模块/` 下。
-```
-
-正文却早就是**五节**（v4 加了 `## 工作流`）。跑多少次「迁移/重构」都修不掉。
-
-**根因**：迁移判据是「整行**完全一致**才替换」，而 `OLD_PREAMBLE_LINES`（旧说明行表）
-里只列了 v4 之后的「只有五节：…」。v3 时代写的是「只有四节：…」，
-认不出来就**原样留在文件头**——读文档的人先看到的正是那句错的。
-
-**修法**：把 v3 的四节说明行补进旧表，并加契约测试钉住——断言里直接用那一行原文，
-再跑一遍真实迁移确认它被换掉、且第二次幂等。**漏哪一版，测试就红在哪一版。**
-
-> 这条坑的教训比修法本身重要：**旧写法表是「靠列举」的，列举不全就等于没修**。
-> 所以判据不能只靠读代码看着对，得有一条断言直接喂那一版的原文。
 
 ## 功能
 
