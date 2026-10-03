@@ -980,6 +980,17 @@ await flush()
 const emptyTree = emptyPanel.component({})
 assert.ok(emptyTree !== null, '空态也要渲染面板')
 assert.ok(findAll(emptyTree, (node) => typeof node === 'string' && node.includes('不会自动占用')).length >= 1, '空态要说清不会自动占用别人的项目')
+// v0.24.1（用户裁定「中间的白色大块占位删了，没用」）：那块虚线占位卡要真删掉。
+// 它跟顶部副标题「本会话未绑定项目」重复，又占着中栏最值钱的位置。
+// **但信息不能一起删**——上面那条「不会自动占用」的断言仍须通过，所以是降级成一行提示。
+{
+  const card = findAll(emptyTree, (node) => typeof node === 'object' && node !== null && node.props !== undefined && node.props.className === 'dshpz-empty')
+  assert.equal(card.length, 0, '空态中栏不该再有虚线占位卡（dshpz-empty）')
+  const cardIcon = findAll(emptyTree, (node) => typeof node === 'object' && node !== null && node.props !== undefined && node.props.className === 'dshpz-emptyicon')
+  assert.equal(cardIcon.length, 0, '占位卡的图标要一起删')
+  const cardTitle = findAll(emptyTree, (node) => typeof node === 'object' && node !== null && node.props !== undefined && node.props.className === 'dshpz-emptytitle')
+  assert.equal(cardTitle.length, 0, '占位卡的标题（与副标题重复）要一起删')
+}
 const emptyButtons = findAll(emptyTree, (node) => typeof node === 'object' && node.type === 'button' && node.props !== undefined && typeof node.props.onClick === 'function')
 const quickButton = emptyButtons.find((node) => Array.isArray(node.children) && node.children.some((child) => child === '快速建空壳'))
 const interviewButton = emptyButtons.find((node) => Array.isArray(node.children) && node.children.some((child) => child === '采访后再建'))
