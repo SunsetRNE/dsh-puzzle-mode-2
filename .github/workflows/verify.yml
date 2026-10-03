@@ -1,0 +1,59 @@
+name: verify
+
+# 本仓自检：上游那套测试 + 跨插件共存握手校验 + 包内容门禁。
+# 触发：push 到 main、任何 PR、手动。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: 测试 + 跨插件握手
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 装依赖
+        run: npm ci --no-audit --no-fund
+
+      - name: 全链测试（10/20/30/40/50 + 握手校验，握手已挂在 npm test 链尾）
+        run: npm test
+
+      # CI 上没有 dsh-infinite-gen-5 —— 握手校验走「对方不在场 → 互校跳过」分支。
+      # 这一分支必须也能跑通，否则 CI 会红在本机永远走不到的那条路上。
+      - name: 契约文件在场且可解析（compat.json）
+        run: |
+          node -e "
+          const j = JSON.parse(require('fs').readFileSync('compat.json','utf8'))
+          if (j.contract !== 'ig5-puzzle-coexist/1') { console.error('契约名不符：'+j.contract); process.exit(1) }
+          if (!(j.puzzleDefaultOrder < j.ig5TailOrder)) { console.error('段序关系不成立：'+j.puzzleDefaultOrder+' !< '+j.ig5TailOrder); process.exit(1) }
+          console.log('契约 OK：'+j.contract+' · 末位锚点 '+j.ig5TailOrder+' · 拼图默认段序 '+j.puzzleDefaultOrder)
+          "
+
+      - name: 包内容门禁（发版前必过的四项）
+        # 由来：装了包却缺 compat.json / tools/ 时，`npm test` 会在握手校验那步直接 ENOENT。
+        # 所以把「包里有这几样」写成 CI 判据，而不是靠发版时记得核。
+        run: |
+          npm pack >/dev/null
+          TGZ=$(ls -t dsh-puzzle-mode-*.tgz | head -1)
+          for f in compat.json COMPAT.md tools/verify-cross-plugin.mjs; do
+            tar tzf "$TGZ" | grep -q "package/$f" || { echo "✗ 包内缺 $f"; exit 1; }
+          done
+          tar xzf "$TGZ" -O package/package.json | node -e "
+          let d=''
+          process.stdin.on('data',c=>d+=c).on('end',()=>{
+            const j=JSON.parse(d)
+            for (const k of ['verify:cross']) if (!j.scripts[k]) { console.error('✗ 包内缺脚本 '+k); process.exit(1) }
+            console.log('✓ 包内容齐 + verify:cross 脚本在')
+          })
+          "

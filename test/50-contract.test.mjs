@@ -655,6 +655,50 @@ try {
     assert.ok(src.includes('不要求出处'), '工具描述必须说明工作流不要求（源码: …）')
   })
 
+  /**
+   * 跨插件共存契约（与 dsh-infinite-gen-5 同装）——**钉字面量**。
+   *
+   * 为什么这几条必须钉字面量而不是引常量：它们约束的是**与外部插件的协商结果**，
+   * 数字一改，对方那份 `data/arbitration.mjs` 就对不上。引常量的话本仓自己改了就绿，
+   * 正是契约测试要拦的那种「单方面改动」。
+   *
+   * 三条各自的由来：
+   *   ① 段序必须可覆盖 —— 否则与对方的末位锚点冲突时只能改源码；
+   *   ② 默认值不得落在 DSH 内置段序表上 —— 同号时段序相同时**按段名比较**，
+   *      位置就不再由协商决定（10100 撞过 WEB_SURFACE）；
+   *   ③ 六条分工条款必须在场 —— 缺一条，那类冲突就回到「两边各说一套」。
+   */
+  check('契约·跨插件共存：段序可覆盖且默认值不撞 DSH 内置段序', () => {
+    const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    assert.ok(src.includes('PUZZLE_SECTION_ORDER'), '段序必须能被 PUZZLE_SECTION_ORDER 覆盖')
+    assert.ok(src.includes('export const SECTION_ORDER_VALUE'), '必须导出段序常量供外部核对')
+
+    const decl = JSON.parse(readFileSync(new URL('../compat.json', import.meta.url), 'utf8'))
+    assert.equal(decl.contract, 'ig5-puzzle-coexist/1', '契约名变了就要同步对方侧')
+    assert.ok(src.includes(`const DEFAULT_SECTION_ORDER = ${decl.puzzleDefaultOrder}`),
+      `lib 默认段序必须与 compat.json 声明一致（${decl.puzzleDefaultOrder}）`)
+    assert.ok(decl.puzzleDefaultOrder < decl.ig5TailOrder,
+      `段序关系必须成立：本插件 ${decl.puzzleDefaultOrder} < 无限五代末位锚点 ${decl.ig5TailOrder}`)
+
+    // DSH 内置段序表（@deepseek-ai/dsh-system-prompt 的 SECTION_ORDERS）——撞号即协商失效。
+    const BUILTIN = [-1000, 0, 500, 600, 800, 900, 1000, 1010, 1100, 1200, 1300, 1400, 1500,
+      1600, 1700, 2000, 2100, 2200, 2300, 2400, 2600, 2700, 2800, 2900, 3000, 3100,
+      5000, 9000, 9900, 10000, 10100, 10200]
+    assert.ok(!BUILTIN.includes(decl.puzzleDefaultOrder),
+      `默认段序 ${decl.puzzleDefaultOrder} 撞上 DSH 内置段序：同号时按段名比较，位置不再由协商决定`)
+  })
+
+  check('契约·跨插件共存：六条分工条款都在政策文本里', () => {
+    const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    const decl = JSON.parse(readFileSync(new URL('../compat.json', import.meta.url), 'utf8'))
+    const probes = decl.textProbes || {}
+    const want = ['domain', 'ask-quota', 'batch-first', 'tool-shape', 'stop-semantics', 'tail-concede']
+    assert.deepEqual(Object.keys(probes).sort(), [...want].sort(),
+      '文本互校表必须覆盖六条分工规则（增删都要同步对方侧）')
+    const miss = want.filter((k) => !src.includes(probes[k].puzzle))
+    assert.equal(miss.length, 0, '政策文本缺条款：' + miss.join(' / '))
+  })
+
   console.log(`\n${passed} 项通过${failed.length ? ` / ${failed.length} 项失败:` : ''}`)
   for (const f of failed) console.log(`  - ${f.name} —— ${f.message}`)
   if (failed.length) process.exitCode = 1

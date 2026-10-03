@@ -17,7 +17,7 @@
 不是独立模式：装进宿主组合后，**标准模式（或任何 preset）的会话**都带上它。
 
 - 仓库：<https://github.com/liancha22/dsh-puzzle-mode>
-- 最新版：**v0.21.0** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
+- 最新版：**v0.22.0** · [更新日志](CHANGELOG.md) · [所有版本](https://github.com/liancha22/dsh-puzzle-mode/releases)
 - 适配：**DSH 0.2.0-rc.2**（peer 覆盖 0.1.5 / 0.1.6 / 0.1.7 全部预发布版，见下）
 - **面板 UI 逐块说明**：[UI.md](UI.md) —— 每颗按钮、每个区块点了会怎样
 
@@ -28,7 +28,7 @@
 **方式一 · 插件管理器（推荐）**
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.20.4
+python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.22.0
 ```
 
 App 的插件页「添加插件」用的就是它，也支持标签 / 分支 / 子目录：
@@ -39,7 +39,7 @@ python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode main/lib
 
 **方式二 · 直接下载附件**
 
-[dsh-puzzle-mode-0.20.4.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.20.4/dsh-puzzle-mode-0.20.4.tgz)
+[dsh-puzzle-mode-0.22.0.tgz](https://github.com/liancha22/dsh-puzzle-mode/releases/download/v0.22.0/dsh-puzzle-mode-0.22.0.tgz)
 （含全部源码）
 
 **方式三 · dsh CLI**
@@ -56,6 +56,24 @@ dsh plugin --profile web add github:liancha22/dsh-puzzle-mode
 ---
 
 ## 最新版本
+
+### v0.22.0 · 与「无限五代」同装时按契约共存
+
+两个插件都会往系统提示里插常驻规则，而且都曾**自认「最后一段」**（本插件写死
+`order = 10500`，无限五代的末位锚点是 `10150`）——同装时那句话必然有一边是假的。
+本版把跨插件共存并回主线：
+
+- **段序可协商**：默认 `10120`（小于对方末位锚点 `10150`，于是它的末位声明成立），
+  可用 `PUZZLE_SECTION_ORDER=10500 dsh ...` 覆盖回旧行为；导出 `SECTION_ORDER_VALUE` 供外部核对。
+  取 `10120` 而非 `10100` 是有意的——**内置段序表里已有 `WEB_SURFACE: 10100`**，
+  同号时段序相同时按段名比较，位置就不再由协商决定。
+- **六条分工条款写进提示段**：域划分 / 提问额度按轮 / 批量题不打断 / 工具形态 / 停下不回退 / 末位让位。
+  两边的规则落在同一份提示里，不靠外部约定。
+- **把「会不会漂」变成能自动发现**：`compat.json` 契约 + `npm run verify:cross`
+  （已挂在 `npm test` 链尾，装了对方就双向互校）+ CI 门禁 + 2 条钉字面量的契约断言。
+
+对方不在场时走「互校跳过」分支并标注，**不判失败**——CI 上没有那个仓库。
+详见 [COMPAT.md](COMPAT.md)。
 
 ### v0.21.0 · 多绑定真正打通：扫描建多个 + 迁移/接续作用于全局
 
@@ -164,28 +182,6 @@ v6→v7 迁移的判据原本是「有 `会话:` 但没有 `当前会话:`」—
 **验证**：新增 6 条回归断言，**逐条验过「把 bug 改回去就红」**——
 模板写死数字 / `FALLBACK_LIMITS` 漂移 / 提示段两说并存 / 面板声称不显示切换条 /
 迁移提示词缺工作流例外 / 残留 v6 绑定口径 / 工具描述拿 50 当工作流尺子。共 **139 项全绿**（56+35+7+41）。
-
-### v0.20.4 · 切换项目「切着切着胶囊没了」
-
-**根因**：面板把**写操作的返回**整体当成新 `data`，而 `mode` / `workflow` / `bind` /
-`current` 的返回都是 `summarize(readState(...))`——**一个都不带 `bindings`**
-（只有 `method:'state'` 带）。于是每做一次写操作，`data.bindings` 就变成 `undefined`，
-切换条塌成「只有当前项目」的兜底，要等下一次轮询（最多 8 秒）才恢复。
-
-实测复现：**点一下执行模式按钮，胶囊就从 `["aaa","bbb"]` 变成 `["aaa"]`**。
-切项目只是最容易撞见的那个入口。
-
-**修法**：客户端加一层 `mergePanelData`——写操作的返回**没给**某个字段就沿用旧的
-（给了就用新的，包括空数组）。一次修好 `mode` / `workflow` / `bind` / `current` 全部。
-
-> 另一种修法是让宿主每个写操作都带上 `bindings`，但那要给每个绑定项目都算一遍健康性
-> （`readState`），与「返回体积 ∝ 本次改动」的纪律相反——而且**绑定组本来就没变**，
-> 没有新信息可言。
-
-**过程中的一处诚实交代**：我同时加了 `markCurrentLocal`（切当前后本地把当前项改掉），
-但**没能稳定构造出它单独失效的场景**——试了扣住 `state`、按名字/位置读高亮等几种测法，
-去掉它之后断言仍然绿。所以它**没有**配套回归断言，价值未经独立验证，
-代码注释里写明了这一点。真正防「胶囊塌掉」的是 `mergePanelData`（那条有断言，去掉就红）。
 
 ## 功能
 

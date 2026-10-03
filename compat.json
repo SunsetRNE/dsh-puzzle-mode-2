@@ -1,0 +1,40 @@
+{
+  "contract": "ig5-puzzle-coexist/1",
+  "ig5TailOrder": 10150,
+  "puzzleDefaultOrder": 10120,
+  "puzzleSectionName": "puzzle-mode:policy",
+  "ig5ArbitrationFile": "data/arbitration.mjs",
+  "ig5ArbitrationConstants": {
+    "tailOrder": "IG5_TAIL_ORDER",
+    "forkDefault": "PZ_ORDER_FORK_DEFAULT",
+    "upstream0197": "PZ_ORDER_UPSTREAM_0197"
+  },
+  "notes": "跨插件共存契约（与 dsh-infinite-gen-5 同源）：两侧各自声明同一组段序数字，任一方的 verify 脚本都读对方这一份并双向核对，任一侧改数字而另一侧没跟上即报错。puzzleDefaultOrder 取 10120：小于无限五代末位锚点 10150，且不落在 DSH 内置段序表的任何取值上（内置表有 WEB_SURFACE: 10100，同号时段序相同时按段名比较，位置就不再由协商决定）。",
+  "textProbes": {
+    "ask-quota": {
+      "puzzle": "提问额度按轮的",
+      "ig5": "同一轮最多一问"
+    },
+    "batch-first": {
+      "puzzle": "不做打断者",
+      "ig5": "批量合同优先"
+    },
+    "stop-semantics": {
+      "puzzle": "不回退",
+      "ig5": "只停动作"
+    },
+    "domain": {
+      "puzzle": "交付物内容与形态",
+      "ig5": "归无限五代"
+    },
+    "tool-shape": {
+      "puzzle": "按各自 schema 给",
+      "ig5": "既有工具 schema 不受"
+    },
+    "tail-concede": {
+      "puzzle": "早于它的末位锚点",
+      "ig5": "只声明本载荷末位"
+    }
+  },
+  "textProbeNotes": "文本层互校：六条分工规则各记左右关键词（含域划分与工具形态）。两侧 verify 都读这张表、各自自证 + 互相核对。"
+}
