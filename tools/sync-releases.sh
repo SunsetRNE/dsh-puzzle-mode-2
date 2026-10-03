@@ -5,7 +5,7 @@ set -uo pipefail
 
 cd "$(dirname "$0")/.."
 TOKEN="$(tr -d '\r\n' < "$HOME/.dsh/.github-token")"
-REPO="liancha22/dsh-puzzle-mode"
+REPO="${RELEASE_REPO:-liancha22/dsh-puzzle-mode}"
 API="https://api.github.com/repos/$REPO"
 
 # 只要一个 tag 参数就只同步那一个；不给就全量。
