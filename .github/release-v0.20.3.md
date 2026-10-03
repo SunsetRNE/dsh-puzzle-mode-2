@@ -1,48 +1,44 @@
-# v0.20.3 · 多绑定模式点「绑定」闪红框
+# v0.20.3 —— 修包内容：把兼容层的契约与工具装进包
 
-用户原话：
+**一句话**：v0.20.2 的 `files` 漏了 `compat.json` / `COMPAT.md` / `tools/`，于是**装出来的包里 `npm test` 会在握手校验那一步直接 ENOENT**。
+本版只补包内容，**运行时代码一个字节没动**（`lib/` 与 v0.20.2 逐字节一致）。
 
-> 我发现选中以后点绑定不行会闪出红框
+## 复现（在 v0.20.2 上，本机实测）
 
-## 根因
-
-多绑定模式勾选后点「绑定选中的 N 个」，客户端发的是：
-
-```json
-{ "method": "bind", "sessionId": "…", "projects": ["demo", "two"] }
+```bash
+tar -tzf dsh-puzzle-mode-0.20.2.tgz | grep -c 'compat.json'                 # 0
+tar -tzf dsh-puzzle-mode-0.20.2.tgz | grep -c 'tools/verify-cross-plugin.mjs' # 0
+cd <装好的插件目录> && node tools/verify-cross-plugin.mjs
+#   → Error: ENOENT ... path: '<插件目录>/compat.json'
 ```
 
-**没有 `project` 字段**。而 `bind` 的入参守卫写成「没有 `project` 就 400」，
-并且它**排在 `projects` 分支之前**——于是这条请求永远被挡在门外，
-面板拿到 `ok:false` 就弹了红框（文案「缺少 project」，看着像客户端没发参数，
-其实客户端发得没错）。
+**影响面**：插件本体照常加载（`lib/` 运行时不读 `compat.json`，已核）；坏的是**包自己的验收链**——
+`npm test` 末尾那步握手校验因为文件不在包里而失败，而本仓的全部价值就在这条链上。
 
-**守卫只想着「主流那一种载荷」**，另一种就被判成「参数缺失」。
+## 本版改了什么
 
-## 修法
-
-1. 守卫挪到 `projects` 解析**之后**，语义改成「**两个都没给**才算缺参数」；
-2. 错误文案改成「缺少 project（或 projects 数组）」，下次一眼能看出两种都认；
-3. 两处补断言：
-   - 服务端（`30-rpc`）：多选请求必须 **200**、两个项目都绑上、**最后一个**成为当前项目；
-   - 界面（`20-client`）：走真实的「切多绑定 → 勾选 → 点按钮」路径，
-     断言发出的载荷**只带 `projects`**。
-
-守卫已验证会红：把守卫挪回原位，`30-rpc` 立刻报 `400 !== 200`。
+| 文件 | 改动 |
+| --- | --- |
+| `package.json` | `files` 补 `tools`、`COMPAT.md`、`compat.json` 三项（版本 0.20.2 → 0.20.3） |
+| 其余 | 与 v0.20.2 完全一致（含上游 v0.19.9–v0.20.1 的同步内容与兼容层） |
 
 ## 验收判据
 
-1. 空态选**多绑定**，勾一个或多个项目，点「绑定选中的 N 个」——**不再出现红框**，
-   面板直接进入已绑定态。
-2. 勾两个项目时，两个都绑上；**最后勾的那个**是当前项目（面板标题与文档目录跟着它）。
-3. 单绑定模式的「绑定」按钮照旧工作（那条载荷带 `project`，不受本次改动影响）。
-4. `＋ 绑定项目`（已绑定态追加）照旧工作。
-5. 什么都不勾时，「绑定选中的 0 个」按钮仍是**禁用**状态（不该发请求）。
+```bash
+npm pack --dry-run | grep -E 'compat\.json|COMPAT\.md|tools/verify-cross-plugin\.mjs'   # 三行都在
+npm test; echo "退出码=$?"                        # 期望 0；末行「跨插件握手校验：21 通过 / 0 失败」
+tar -tzf dsh-puzzle-mode-0.20.3.tgz | grep -c 'compat.json'   # 期望 1
+cd <装好的插件目录> && node tools/verify-cross-plugin.mjs       # 期望 21 通过 / 0 失败（不再 ENOENT）
+```
 
 ## 安装
 
 ```bash
-python3 "$DSH_HOME/plugin-manager.py" github liancha22 dsh-puzzle-mode v0.20.3
+python3 "$DSH_HOME/plugin-manager.py" github SunsetRNE dsh-puzzle-mode-2 v0.20.3
+# 或离线：python3 "$DSH_HOME/plugin-manager.py" import dsh-puzzle-mode-0.20.3.tgz
 ```
 
-含 v0.20.2 / v0.20.1 / v0.20.0 的全部修复与多绑定功能。
+## 记一笔
+
+这条缺陷是**发版后装机自检**抓到的：装完在插件目录里跑一遍 `node tools/verify-cross-plugin.mjs` 就露了。
+所以 `COMPAT.md` §五 加了一条纪律：**每次发版前用 `npm pack --dry-run` 核 `compat.json` 与 `tools/` 在场**。
