@@ -8,7 +8,7 @@
  * 裸目录里这一组无法运行，此时**明确跳过**并说明原因，而不是抛 ERR_MODULE_NOT_FOUND。
  */
 import assert from 'node:assert/strict'
-import { mkdtempSync, rmSync, existsSync } from 'node:fs'
+import { mkdtempSync, rmSync, existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { HEALTH_DIMENSIONS, PUZZLE_VERSION, SECTION_ORDER, boundProject, boundProjects, createProject, docVersion, readState } from '../lib/puzzle.js'
@@ -186,6 +186,35 @@ try {
     const out = await call(handler, { body: JSON.stringify({ method: 'mode', sessionId: 'session-x', mode: '乱写' }) })
     assert.equal(out.status, 400)
     ok('未知 mode → 400')
+  }
+
+  {
+    // 规模档位：面板三颗按钮走这条。写进主文档 front-matter 的 `规模:` 并回整份 state。
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'size', sessionId: 'session-x', project: 'demo', size: '大' }) })
+    assert.equal(out.body.ok, true)
+    assert.equal(out.body.result.size, '大', 'state 里要带上规模，面板靠它高亮当前档')
+    assert.equal(readState(root, 'demo').size, '大', '要真的写进主文档')
+    ok('size → 写回主文档并返回新状态')
+  }
+
+  {
+    // 中档是默认值：写「中」应当把 `规模:` 那一行**删掉**（它是噪音），读回来仍是「中」。
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'size', sessionId: 'session-x', project: 'demo', size: '中' }) })
+    assert.equal(out.body.ok, true)
+    assert.equal(out.body.result.size, '中')
+    const raw = readFileSync(join(root, 'demo', '拼图', '主文档.md'), 'utf8')
+    assert.ok(!raw.includes('规模:'), '中档是默认值，不该在 front-matter 里留这一行')
+    assert.equal(readState(root, 'demo').size, '中', '不写这一行时读回来必须是「中」')
+    ok('size 中 → 删掉那一行（默认值不留噪音），读回来仍是中')
+  }
+
+  {
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'size', sessionId: 'session-x', project: 'demo', size: '巨大' }) })
+    assert.equal(out.body.ok, false)
+    ok('未知 size → ok:false（不 400，面板按错误文案显示）')
   }
 
   {

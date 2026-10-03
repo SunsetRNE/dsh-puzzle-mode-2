@@ -50,6 +50,13 @@ import {
   SECTION_HEADINGS,
   SECTION_ORDER,
   SESSION_FIELD,
+  SIZE_CAPS,
+  SIZE_ENTRY_LIMITS,
+  SIZE_LARGE,
+  SIZE_MEDIUM,
+  SIZE_SMALL,
+  normalizeSize,
+  limitsFor,
   SOURCE_MARK,
   WORKFLOW_MAX_STEPS,
   WORKFLOW_STEP_LIMIT,
@@ -697,6 +704,67 @@ try {
       '文本互校表必须覆盖六条分工规则（增删都要同步对方侧）')
     const miss = want.filter((k) => !src.includes(probes[k].puzzle))
     assert.equal(miss.length, 0, '政策文本缺条款：' + miss.join(' / '))
+  })
+
+  /**
+   * 项目规模档位（小 / 中 / 大）——**中档必须等于升级前的值**。
+   *
+   * 为什么钉这一条：`中` 是默认档（存量文档不写 `规模:` 就是这个档）。
+   * 若哪天有人调 `SIZE_CAPS['中']` 去「顺手改一下」，所有没写过规模的老项目
+   * 会在下一次写入时**静默删掉超出的条目**。这条断言把那种改动变成一次可见的红。
+   */
+  check('契约·规模档位：中档 = 升级前的上限（存量文档不受影响）', () => {
+    assert.deepEqual(SIZE_CAPS[SIZE_MEDIUM], { ...ENTRY_CAPS, pit: null },
+      '中档必须等于 ENTRY_CAPS 原值（另加 pit: null）——否则存量文档的条目会被静默删掉')
+    assert.deepEqual(SIZE_ENTRY_LIMITS[SIZE_MEDIUM], ENTRY_LIMITS,
+      '中档字数上限必须等于 ENTRY_LIMITS 原值')
+    // 三档必须都认得出，且 normalizeSize 的别名不能漏。
+    for (const name of [SIZE_SMALL, SIZE_MEDIUM, SIZE_LARGE]) {
+      assert.ok(normalizeSize(name) === name, `认不出档位「${name}」`)
+      assert.ok(SIZE_CAPS[name] !== undefined, `缺 ${name} 档的条数上限`)
+      assert.ok(SIZE_ENTRY_LIMITS[name] !== undefined, `缺 ${name} 档的字数上限`)
+    }
+    assert.equal(normalizeSize('l'), SIZE_LARGE, '别名 l 要认')
+    assert.equal(normalizeSize('medium'), SIZE_MEDIUM, '别名 medium 要认')
+    assert.equal(normalizeSize('xx'), null, '认不出的档位必须回 null（由调用方回落默认）')
+  })
+
+  check('契约·规模档位：大档确实放宽、小档确实收紧', () => {
+    assert.ok(SIZE_CAPS[SIZE_LARGE].decided > SIZE_CAPS[SIZE_MEDIUM].decided, '大档已定上限要更高')
+    assert.ok(SIZE_CAPS[SIZE_LARGE].pending > SIZE_CAPS[SIZE_MEDIUM].pending, '大档悬而未决上限要更高')
+    assert.ok(SIZE_ENTRY_LIMITS[SIZE_LARGE].points > SIZE_ENTRY_LIMITS[SIZE_MEDIUM].points, '大档要点字数要放宽')
+    assert.ok(SIZE_CAPS[SIZE_SMALL].pit !== null && SIZE_CAPS[SIZE_SMALL].pit > 0, '小档坑要有条数上限')
+    assert.ok(SIZE_CAPS[SIZE_SMALL].decided < SIZE_CAPS[SIZE_MEDIUM].decided, '小档已定上限要更紧')
+  })
+
+  /**
+   * 提示段**不许写死条目上限**——上限随项目规模变，写死就会把错的数字交给模型。
+   *
+   * 这条是「缓存检查」查出来的真问题：提示段是模块级常量（为了缓存稳定，这是对的），
+   * 但它原先用 `ENTRY_CAPS.pending`（中档固定值）告诉模型「悬而未决 ≤4 条」——
+   * 而大档实际能写 12 条。模型照提示段写就少写；照写入侧写又「违反」了提示段。
+   * 修法：提示段只说「按规模，看返回里的 limits」，**真实值由 receipt 下发**。
+   * 于是两边各有一条断言钉住：提示段不写死、receipt 给的是当前档的真值。
+   */
+  check('契约·提示段不得写死条目上限（真实值走 receipt 下发）', () => {
+    const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    const at = src.indexOf('const POLICY_BODY = [')
+    const end = src.indexOf('会话与项目定位', at)
+    assert.ok(at > 0 && end > at, '找不到 POLICY_BODY 区段——文件结构变了，请同步这条断言')
+    const policy = src.slice(at, end)
+    assert.ok(policy.includes('随项目规模'), '提示段必须说明上限随项目规模变化')
+    assert.ok(policy.includes('limits'), '提示段必须指向 limits 拿真实上限')
+    assert.ok(!policy.includes('ENTRY_CAPS.pending'), '提示段又把中档固定值当上限讲了')
+    assert.ok(!policy.includes('ENTRY_CAPS.decided'), '提示段又把中档固定值当上限讲了')
+    assert.ok(!policy.includes('ENTRY_CAPS.workflow'), '提示段又把中档固定值当上限讲了')
+  })
+
+  check('契约·receipt 下发的 limits 是**当前档**的真实上限', () => {
+    assert.deepEqual(limitsFor(SIZE_SMALL).entryCaps, SIZE_CAPS[SIZE_SMALL], '小档 limits 要是小档的值')
+    assert.deepEqual(limitsFor(SIZE_LARGE).entryCaps, SIZE_CAPS[SIZE_LARGE], '大档 limits 要是大档的值')
+    assert.equal(limitsFor(SIZE_LARGE).size, SIZE_LARGE, 'limits 里要带上是哪一档')
+    assert.deepEqual(limitsFor('乱写').entryCaps, SIZE_CAPS[SIZE_MEDIUM], '认不出的档位要回落到中档')
+    assert.deepEqual(limitsFor(SIZE_MEDIUM).entryCaps, { ...ENTRY_CAPS, pit: null }, '中档必须与写入侧一致')
   })
 
   console.log(`\n${passed} 项通过${failed.length ? ` / ${failed.length} 项失败:` : ''}`)
