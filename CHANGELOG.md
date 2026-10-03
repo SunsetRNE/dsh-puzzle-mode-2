@@ -1,3 +1,12 @@
+## v0.20.3（兼容层 · 修包内容）
+
+**v0.20.2 的包漏了三个文件**：`compat.json` / `COMPAT.md` / `tools/`。后果是**装出来的包里 `npm test` 在握手校验那步 ENOENT**
+（`node tools/verify-cross-plugin.mjs` → 找不到 `compat.json`）。运行时代码不受影响，坏的是包自己的验收链。
+
+- `package.json` 的 `files` 补 `tools`、`COMPAT.md`、`compat.json`；
+- `lib/` 与 v0.20.2 **逐字节一致**，本版只动包内容；
+- 缺陷由发版后的装机自检抓到，`COMPAT.md` §五 补一条纪律：发版前 `npm pack --dry-run` 必须看到 `compat.json` 与 `tools/`。
+
 ## v0.20.2（兼容层 · 上游同步）
 
 **rebase 到上游 v0.20.1**（`43f4c19`）：本仓 = 上游 + 兼容面，兼容提交仍在最顶。

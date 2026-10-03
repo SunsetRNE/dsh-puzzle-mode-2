@@ -77,3 +77,5 @@ npm pack && curl -s -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: 
    —— 用 `GITHUB_TOKEN_FILE` 指过去即可，别把 token 或它的路径写进仓库。
 2. **附件的正文会过期**：`README.md` / `UI.md` / `PUBLISH.md` / `package.json` 都在 `files` 里，
    改完文档要重传附件（先删旧附件再传，否则会出现 `-1` 后缀的同名附件）。
+3. **发版前核包内容**：`npm pack --dry-run` 里必须看到 `compat.json`、`COMPAT.md`、`tools/verify-cross-plugin.mjs`
+   —— v0.20.2 漏了这三个，装出来的包里 `npm test` 直接在握手校验那步 ENOENT（v0.20.3 修）。
