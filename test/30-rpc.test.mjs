@@ -579,6 +579,39 @@ try {
     ok('RPC rebuild 不存在的项目 → ok:false')
   }
 
+  {
+    // v0.21.0 ②：面板「迁移/仅迁移格式」在多绑定下作用于**全部绑定**（用户裁定）。
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'rebuild', sessionId: 'session-x', all: true }) })
+    assert.equal(out.body.ok, true)
+    assert.equal(out.body.result.all, true, '要标出这是全局迁移')
+    assert.ok(Array.isArray(out.body.result.boundProjects) && out.body.result.boundProjects.length >= 1,
+      '要回报迁移了哪些项目')
+    assert.ok(Array.isArray(out.body.result.results) && out.body.result.results.length === out.body.result.boundProjects.length,
+      '每个绑定项目一份结果')
+    for (const one of out.body.result.results) {
+      assert.equal(typeof one.project, 'string')
+      assert.equal(typeof one.totalChanges, 'number')
+      assert.ok(Array.isArray(one.files), '每个项目都要带自己的预览文件列表（面板逐项目渲染）')
+    }
+    assert.equal(typeof out.body.result.totalChanges, 'number', '要有一个总改动数')
+    ok('RPC rebuild all:true → 作用于全部绑定并逐项目回报')
+  }
+
+  {
+    // v0.21.0 ①：面板空态「扫工作区 · 一次建多个」走这条。
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'scan', sessionId: 'session-x' }) })
+    assert.equal(out.body.ok, true)
+    assert.ok(Array.isArray(out.body.result.candidates), '要给出候选目录数组')
+    assert.ok(Array.isArray(out.body.result.alreadyPuzzled), '要给出已经有文档的目录（供面板区分）')
+    for (const item of out.body.result.candidates) {
+      assert.equal(typeof item.name, 'string')
+      assert.ok(Array.isArray(item.entries), '每条要带目录内容当证据')
+    }
+    ok('RPC scan → 给出没有拼图文档的候选目录')
+  }
+
   console.log(`\n${passed} 项通过`)
 } finally {
   rmSync(root, { recursive: true, force: true })

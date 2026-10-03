@@ -10,6 +10,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { isFile } from '../lib/util.js'
 import {
   AUDIT_PROMPT,
   ASK_MAX_OPTIONS,
@@ -25,6 +26,8 @@ import {
   PAUSE_OPTIONS,
   PAUSE_QUESTION,
   PUZZLE_DIR,
+  MAIN_FILE,
+  scanUnpuzzled,
   SECTION_HEADINGS,
   SECTION_ORDER,
   MODULE_SECTION_HEADINGS,
@@ -662,6 +665,65 @@ try {
     assert.ok(chain.length >= 1, 'v1 有待办迁移')
     assert.equal(pendingMigrations(PUZZLE_VERSION).length, 0, '当前版本没有待办迁移')
     assert.ok(chain[0].label.includes('v1'))
+  })
+
+  /**
+   * v0.21.0 ①：`scanUnpuzzled` 只列「还没有拼图文档」的顶层目录，并排除噪音目录。
+   *
+   * 用户需求原话：「造着项目建文档加一个自动判断此会话是否有多个项目」。
+   * 判据要**宽**（纯数据目录、脚本集合也是用户眼里的项目），但噪音目录必须挡掉——
+   * 把 node_modules / .git 列给用户勾选，等于让他在噪音里找信号。
+   */
+  check('scanUnpuzzled：只列没文档的目录，且排除噪音目录', () => {
+    const root2 = mkdtempSync(join(tmpdir(), 'puzzle-scan-'))
+    try {
+      for (const name of ['alpha', 'beta']) {
+        mkdirSync(join(root2, name))
+        writeFileSync(join(root2, name, 'README.md'), 'x')
+      }
+      // 噪音目录：依赖 / 版本控制 / 隐藏
+      mkdirSync(join(root2, 'node_modules'))
+      mkdirSync(join(root2, '.git'))
+      mkdirSync(join(root2, '.cache'))
+      // 已有拼图文档的目录：不该再被列出来
+      createProject(root2, 'done', 'x', [], '写后再拼', 's1')
+      const names = scanUnpuzzled(root2).map((item) => item.name)
+      assert.deepEqual(names.sort(), ['alpha', 'beta'], '只列没文档的普通目录')
+      assert.ok(!names.includes('done'), '已经有拼图文档的目录不该再列')
+      assert.ok(!names.includes('node_modules') && !names.includes('.git'), '噪音目录必须排除')
+      // 证据：每条带上目录里的文件名，用户靠它认人
+      const alpha = scanUnpuzzled(root2).find((item) => item.name === 'alpha')
+      assert.ok(Array.isArray(alpha.entries) && alpha.entries.includes('README.md'), '要带目录内容当证据')
+    } finally {
+      rmSync(root2, { recursive: true, force: true })
+    }
+  })
+
+  /**
+   * v0.21.0 ①：一次建多个项目 = **全部追加绑定**（用户裁定），最后一个成为当前。
+   */
+  check('一次建多个项目：全部追加绑定，最后一个成为当前', () => {
+    const root2 = mkdtempSync(join(tmpdir(), 'puzzle-many-'))
+    try {
+      for (const name of ['alpha', 'beta', 'gamma']) {
+        mkdirSync(join(root2, name))
+        writeFileSync(join(root2, name, 'README.md'), 'x')
+      }
+      const sid = 'sess-many'
+      for (const name of ['alpha', 'beta', 'gamma']) {
+        const created = createProject(root2, name, '', [], '写后再拼', sid)
+        assert.equal(created.ok, true, name + ' 要建得出来')
+      }
+      const bound = boundProjects(root2, sid)
+      assert.equal(bound.length, 3, '三个都该绑上（不是只留最后一个）')
+      assert.equal(bound[0], 'gamma', '最后一个建的成为当前项目')
+      // 每个都真的落了一份主文档
+      for (const name of ['alpha', 'beta', 'gamma']) {
+        assert.ok(isFile(join(root2, name, PUZZLE_DIR, MAIN_FILE)), name + ' 要有主文档')
+      }
+    } finally {
+      rmSync(root2, { recursive: true, force: true })
+    }
   })
 
   check('planRebuild：只报计划、绝不写盘', () => {

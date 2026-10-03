@@ -153,6 +153,30 @@ for (const name of ['createTemplate', 'interviewTemplate', 'bindTemplate', 'crea
   assert.ok(bind.includes('demo'), '绑定模板要带上项目名')
 }
 
+/* ---------------------- 接续会话模板（v0.21.0 ③） ---------------------- */
+
+/**
+ * 用户原话：「改接续会话提示词，直接让其接上一个会话干的活就行」，
+ * 并确认「不是有什么看审查的段吗，把那个删掉」——即去掉要求它汇报「最弱的一维」。
+ *
+ * 为什么该删：接续会话的读者是**干活的人**，不是评审。让它先报五维最弱项，
+ * 等于把「继续做」变成「先做一轮评估」，离题且费上下文。
+ */
+{
+  const text = mod.resumeTemplate('demo', '/w/demo/拼图', '/w', null, ['demo'])
+  assert.ok(text.includes('接着上一个会话没干完的活'), '接续会话要以「接着干」为主旨')
+  assert.ok(text.includes('不要重新问我需求'), '要明确不必重新问需求')
+  assert.ok(!text.includes('最弱的一维'), '「最弱一维」那段按用户要求删掉')
+  assert.ok(!/审查/.test(text), '接续会话不该提审查')
+  // 多绑定：列出全部绑定项目，并说明接续是全局动作（用户裁定 ②）
+  const many = mod.resumeTemplate('demo', '/w/demo/拼图', '/w', null, ['demo', 'other', 'third'])
+  assert.ok(many.includes('other') && many.includes('third'), '多绑定时要列出全部绑定项目')
+  assert.ok(many.includes('全局动作'), '要说清接续是全局动作，别只接当前项目')
+  assert.ok(!many.includes('最弱的一维'), '多绑定版本同样不该有「最弱一维」')
+  // 单绑定不该冒出多绑定那段（否则是噪音）
+  assert.ok(!text.includes('全局动作'), '单绑定时不该有多绑定提示')
+}
+
 /* ------------------------ 迁移/重构模板（v0.20.5） ------------------------ */
 
 /**

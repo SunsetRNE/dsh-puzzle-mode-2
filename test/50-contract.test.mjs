@@ -516,6 +516,47 @@ try {
     assert.ok(!twice.changes.some((c) => c.includes('说明')), '第二次不该再改说明行')
   })
 
+  /**
+   * v0.21.0：迁移**不许**给「v7 的、只是不是当前」的项目补 `当前会话:`。
+   *
+   * 真实 bug（做「迁移作用于全部绑定」时暴露）：判据原本是「有 会话: 但没有 当前会话:」，
+   * 而这个判据**只看单个项目**——可「当前是哪个」是**工作区级**事实：
+   * 一个会话绑三个项目时，只有当前那一个该带 `当前会话:`，另外两个**本来就不带**。
+   * 于是全局迁移给三个都补上，三个同时自称当前。后果不是显示错乱，而是
+   * **解绑当前项目时静默把当前身份送给一个从没被选过的项目**（实测：解绑 beta 后 gamma 当上当前）。
+   *
+   * 判据必须带版本：只有 `docVersion < CURRENT_SESSION_VERSION` 才补。
+   */
+  check('契约·迁移不给「v7 且非当前」的项目补 当前会话:', () => {
+    const v7 = [
+      '---', 'puzzle: 7', '项目: side', '模式: 写后再拼', '计划模块: []',
+      '会话: ["s1"]', '---', '', '> 目标：x', '',
+      '## 模块索引', '- （尚未拆分模块）', '',
+      '## 源码索引', '', '## 工具索引', '', '## 坑', '', '## 工作流', '',
+    ].join('\n')
+    const r = migrateMainDoc(v7, 'side', [])
+    assert.ok(!r.text.includes(CURRENT_SESSION_FIELD),
+      'v7 文档没写 当前会话: 是**合法状态**（绑着但不是当前），迁移不该替它选')
+    assert.ok(!r.changes.some((c) => c.includes('当前会话')),
+      '不该报「补 当前会话:」——那会让全局迁移把每个绑定项目都变成当前')
+  })
+
+  /**
+   * 反向：真正的 v6 老文档**必须**还能被补上（修 bug 不能把功能一起修掉）。
+   */
+  check('契约·迁移仍给真正的 v6 文档补 当前会话:（且幂等）', () => {
+    const v6 = [
+      '---', 'puzzle: 6', '项目: old', '模式: 写后再拼', '计划模块: []',
+      '会话: ["s1"]', '---', '', '> 目标：x', '',
+      '## 模块索引', '- （尚未拆分模块）', '',
+      '## 源码索引', '', '## 工具索引', '', '## 坑', '',
+    ].join('\n')
+    const once = migrateMainDoc(v6, 'old', [])
+    assert.ok(once.text.includes(CURRENT_SESSION_FIELD), 'v6 唯一那个绑定就是当前，必须补出来')
+    const twice = migrateMainDoc(once.text, 'old', [])
+    assert.ok(!twice.changes.some((c) => c.includes('当前会话')), '补过一次后要幂等')
+  })
+
   check('契约·固定收尾问文案与两个选项都在（引 PAUSE_QUESTION / PAUSE_OPTIONS）', () => {
     assert.equal(typeof PAUSE_QUESTION, 'string')
     assert.ok(PAUSE_QUESTION.length > 0)
