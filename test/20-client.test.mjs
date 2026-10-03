@@ -405,6 +405,80 @@ console.log('ok   bundle 格式、两个 Slot 注册、图块详情、客观发�
   assert.equal(unbindReqs[unbindReqs.length - 1].project, 'second', '× 只解绑它自己那一个')
 
   console.log('ok   多绑定切换条：绑几个画几个胶囊 / 当前高亮 / 点胶囊切当前 / × 只解一个 / ＋ 在场')
+
+/* ------------- 空态多绑定：勾选 → 点「绑定选中的 N 个」必须发得出去 ------------- */
+
+/**
+ * 这条断言的由来（用户报「选中以后点绑定不行会闪出红框」）：
+ * 空态「多绑定」模式勾选后点按钮，客户端发的是 `projects: [...]`、**没有 `project` 字段**，
+ * 而 RPC 的入参守卫当时写成「没有 project 就 400」——请求永远被挡，面板弹红框。
+ * 这里把**界面发出的载荷形状**钉死：只带 `projects` 数组。服务端那一半由 30-rpc 覆盖。
+ */
+{
+  const multiLoaded = []
+  const multiRequests = []
+  const multiWindow = {
+    __ModuleLoader__: { load(entry) { multiLoaded.push(entry) } },
+    setInterval() { return 1 },
+    clearInterval() {},
+    addEventListener() {},
+    removeEventListener() {},
+  }
+  const multiFetch = (url, options) => {
+    const body = JSON.parse(options.body)
+    multiRequests.push(body)
+    let result
+    if (body.method === 'state') {
+      result = { ok: true, initialized: false, projectRoot: '/tmp/ws4', projectDir: '', project: '', mode: '只拼不写', modeSource: 'default', health: 0, dimensions: {}, sections: {}, cwdSource: 'session', projectSource: 'none', modules: [] }
+    } else if (body.method === 'list') {
+      result = { ok: true, projectCount: 2, defaultProject: 'demo', projects: [{ name: 'demo', health: 62 }, { name: 'two', health: 41 }] }
+    } else {
+      result = { ok: true }
+    }
+    return Promise.resolve({ json: () => Promise.resolve({ ok: true, result }) })
+  }
+  new Function('window', 'document', 'fetch', source)(
+    multiWindow,
+    { createElement: () => ({ setAttribute() {}, textContent: '' }), head: { appendChild() {} }, body: {} },
+    multiFetch,
+  )
+  const multiMod = multiLoaded[0].factory((name) => {
+    if (name === 'react') return fakeReact
+    throw new Error('unexpected require: ' + name)
+  })
+  const regs = []
+  const sl = { inject(name, cb) { cb(); return () => {} }, register(o, c) { regs.push({ o, c }); return () => {} } }
+  multiMod.apply({ get: (n) => (n === 'slots' ? sl : undefined), effect: () => () => {} })
+  const btn = regs.find((r) => r.o.name === 'conversation.input.left')
+  const pnl = regs.find((r) => r.o.name === 'shell.overlay')
+  btn.c({ sessionId: 'session-ms', inputActions: { setDraft() {}, submit() {} } }).props.onClick()
+  await flush()
+  let tree = pnl.c({})
+
+  const multiMode = findAll(tree, (node) => typeof node === 'object' && node.type === 'button'
+    && Array.isArray(node.children) && node.children.includes('多绑定'))[0]
+  assert.ok(multiMode !== undefined, '空态要有「多绑定」模式按钮')
+  multiMode.props.onClick()
+  tree = pnl.c({})
+
+  const boxes = findAll(tree, (node) => typeof node === 'object' && node.type === 'input' && node.props.type === 'checkbox')
+  assert.equal(boxes.length, 2, '多绑定模式要给每个已有项目一个勾选框')
+  boxes[0].props.onChange()
+  tree = pnl.c({})
+
+  const bindBtn = findAll(tree, (node) => typeof node === 'object' && node.type === 'button'
+    && Array.isArray(node.children) && node.children.some((c) => typeof c === 'string' && c.startsWith('绑定选中的')))[0]
+  assert.ok(bindBtn !== undefined, '要有一颗「绑定选中的 N 个」按钮')
+  assert.equal(bindBtn.props.disabled, false, '勾了一个之后按钮不该还是禁用的')
+  bindBtn.props.onClick()
+  await flush()
+
+  const binds = multiRequests.filter((item) => item.method === 'bind')
+  assert.equal(binds.length, 1, '点一次要恰好发一次 bind')
+  assert.deepEqual(binds[0].projects, ['demo'], '载荷要带 projects 数组')
+  assert.equal(binds[0].project, undefined, '**不该**带 project 字段——服务端守卫必须认 projects（这是红框的由来）')
+  console.log('ok   空态多绑定：勾选 → 点绑定 → 载荷只带 projects 数组（服务端必须认它）')
+}
 }
 
 /* ------------- 空态：新会话默认空绑定 → 建项目 / 绑定已有项目 ------------- */

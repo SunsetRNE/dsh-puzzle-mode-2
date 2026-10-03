@@ -390,6 +390,28 @@ try {
   }
 
   {
+    /**
+     * 多绑定模式的「绑定选中的 N 个」：客户端发的是 `projects: [...]`，**没有 `project` 字段**。
+     *
+     * 实测 bug（用户报「选中以后点绑定不行会闪出红框」）：`bind` 的入参守卫
+     * （`typeof body.project !== 'string'` → 400）写在 `projects` 分支**之前**，
+     * 于是这条请求永远被 400 挡掉，面板显示「缺少 project」的红框。
+     * 守卫必须先看 `projects`，只在两者都没有时才要求 `project`。
+     */
+    // 造第二个项目：多选要有两个真实存在的项目才测得出「都绑上」。
+    createProject(root, 'multi-two', '目标二', [], '只拼不写')
+    const handler = captureRoute()
+    const out = await call(handler, { body: JSON.stringify({ method: 'bind', sessionId: 'session-multi', projects: ['demo', 'multi-two'] }) })
+    assert.equal(out.status, 200, '多选绑定不该被「缺 project」挡掉')
+    assert.equal(out.body.ok, true, '多选绑定必须成功（这是红框的由来）')
+    assert.deepEqual(out.body.result.added, ['demo', 'multi-two'])
+    assert.equal(out.body.result.addedCount, 2)
+    assert.deepEqual(boundProjects(root, 'session-multi').sort(), ['demo', 'multi-two'], '两个都要绑上')
+    assert.equal(boundProject(root, 'session-multi'), 'multi-two', '最后一个成为当前项目')
+    ok('RPC bind 多选（projects 数组，无 project）→ 追加绑定且不被 400 挡')
+  }
+
+  {
     // 没绑定就没有项目可写：写操作必须明确拒绝，而不是悄悄新建。
     const tool = captureTool()
     const out = await tool.execute({ op: 'main', section: 'pit', content: '- x' }, { agent: { session: { id: 'session-loose' } } })

@@ -7,7 +7,7 @@
 | 项 | 现状（2026-10-02） |
 | --- | --- |
 | 仓库 | <https://github.com/liancha22/dsh-puzzle-mode>（public） |
-| 版本 | v0.20.2（**修审查把 `## 工作流` 当条目量**——`MAIN_ENTRY_SPEC` 由 `SECTION_ORDER` 直接生成，于是拿 `ENTRY_LIMITS.workflow=50` 量每一行，而步骤合法上限是 `WORKFLOW_STEP_LIMIT=80`：51–80 字的合法步骤被报超长，本项目自己的审查里长期挂着 7 条假发现。已把 workflow 从条目规格排除（它不是条目小节）+ 契约测试钉住，改回 bug 立刻红。含 v0.20.1 迁移修复与 v0.20.0 多绑定） |
+| 版本 | v0.20.3（**修多绑定点绑定闪红框**——用户报「选中以后点绑定不行会闪出红框」。根因：多选载荷是 `projects: [...]`、没有 `project` 字段，而 `bind` 的入参守卫写成「没有 project 就 400」且排在 projects 分支之前，请求永远被挡。守卫已改成「两个都没给才算缺参数」，服务端 + 界面两处补断言。含 v0.20.2 审查尺子修复、v0.20.1 迁移修复、v0.20.0 多绑定） |
 | 兼容 | DSH `^0.1.5-alpha.1 \|\| ^0.1.6-alpha.1 \|\| ^0.1.7-alpha.1 \|\| ^0.2.0-rc.1`（peer 只声明 `@deepseek-ai/dsh-tools`；13 个已发布版本全覆盖） |
 | Release | <https://github.com/liancha22/dsh-puzzle-mode/releases> |
 | npm | **未发布**（本机装的是 GitHub 源） |
