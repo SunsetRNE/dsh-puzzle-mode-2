@@ -595,6 +595,25 @@ try {
     assert.ok(!src.includes('不显示切换条'), '面板文案与实现矛盾：单绑定其实会画胶囊')
   })
 
+  /**
+   * v0.20.5：工具描述里**不许**拿 `ENTRY_LIMITS.workflow` 当工作流的尺子。
+   *
+   * 这是同一个「两把尺子」bug 的**第三处**：v0.20.2 修了审查侧
+   * （`MAIN_ENTRY_SPEC` 拿 50 量 80 的步骤），v0.20.5 修了面板提示词侧，
+   * 而 `op:main` 的 `content` 参数描述里**还写着「工作流 50 字」**——
+   * 模型照它把合法步骤砍到 50 以内，写入侧（`normalizeWorkflowEntries`）
+   * 明明收得下 80。`ENTRY_LIMITS.workflow` 只是个**占位值**，任何地方都不该拿它当上限。
+   */
+  check('契约·工具描述不得拿 ENTRY_LIMITS.workflow 当工作流的尺子', () => {
+    const src = readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8')
+    assert.ok(!src.includes('工作流 ${ENTRY_LIMITS.workflow} 字'),
+      'op:main 的 content 描述又把 ENTRY_LIMITS.workflow 当成工作流上限了')
+    // 正向：工具描述里必须给出工作流**真正**的那把尺子。
+    assert.ok(src.includes('WORKFLOW_STEP_LIMIT') && src.includes('WORKFLOW_NAME_LIMIT'),
+      '工具描述必须写出工作流的真实尺子（名字 / 步骤），否则模型只能猜')
+    assert.ok(src.includes('不要求出处'), '工具描述必须说明工作流不要求（源码: …）')
+  })
+
   console.log(`\n${passed} 项通过${failed.length ? ` / ${failed.length} 项失败:` : ''}`)
   for (const f of failed) console.log(`  - ${f.name} —— ${f.message}`)
   if (failed.length) process.exitCode = 1
