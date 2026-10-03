@@ -27,7 +27,9 @@
     "test": "node test/10-puzzle.test.mjs && node test/20-client.test.mjs && node test/30-rpc.test.mjs && node test/40-pre-execute.test.mjs && node test/50-contract.test.mjs && node tools/verify-cross-plugin.mjs",
     "test:contract": "node test/50-contract.test.mjs",
     "verify:cross": "node tools/verify-cross-plugin.mjs",
-    "render-tutorial": "node tools/render-tutorial.mjs"
+    "render-tutorial": "node tools/render-tutorial.mjs",
+    "log:compat": "node tools/log-compat.mjs",
+    "sync:upstream": "node tools/sync-upstream.mjs"
   },
   "keywords": [
     "dsh",
